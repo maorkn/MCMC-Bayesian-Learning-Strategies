@@ -189,28 +189,6 @@ python lock_in.py
 
 ---
 
-## Generating Figures
-
-After running experiments, generate publication figures:
-
-```bash
-cd Fig_pub
-
-# Figure 1: Environment schematic
-python create_fig1.py
-
-# Figure 2: Independent population dynamics
-python create_fig2_independent_runs_PREP_FIXED.py
-
-# Figure 3: Stress test and lock-in results
-python create_fig3_stress_and_lockin_PROPERLY_FIXED.py
-```
-
-**Input:** Figures read data from `wrappers/` output directories.
-
-**Output:** PNG/PDF files saved in `Fig_pub/` directory.
-
----
 
 ## Output Format
 

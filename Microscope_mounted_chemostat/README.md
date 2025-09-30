@@ -75,8 +75,8 @@ Status LED:         GPIO 2  (Built-in)
 
 ### 1. Flow Rate Control
 - **PWM Resolution:** 13-bit (8,191 discrete levels)
-- **Flow Range:** 0.1-15 ml/h per pump with ±5% accuracy
-- **Calibration Model:** Linear relationship: Flow Rate (ml/h) = a × PWM% + b
+- **Flow Range:** 0.1-15 ml/min per pump with ±5% accuracy
+- **Calibration Model:** Linear relationship: Flow Rate (ml/min) = a × PWM% + b
 - **Minimum Flow:** 0.05 ml/h achieved through duty cycling
 - **Real-time Adjustment:** Flow rates modifiable during operation
 

@@ -2,7 +2,7 @@
 
 **A comprehensive research framework for investigating predictive learning, memory formation, and Bayesian inference at the cellular level**
 
-This repository contains the complete codebase, experimental platforms, and documentation for the paper **"Beyond Diffusion: Bayesian Learning Strategies in Single-Cell Life"**. The project demonstrates that single-celled organisms exhibit sophisticated learning behaviors that extend beyond simple chemical diffusion, employing Bayesian-like inference strategies for environmental prediction and adaptive responses.
+This repository contains the complete codebase, experimental platforms, and documentation for the paper **"Beyond Diffusion: Bayesian Learning Strategies in Single-Cell Life"**. The project demonstrates that single-celled organisms might exhibit sophisticated learning behaviors that extend beyond simple chemical diffusion, employing Bayesian-like inference strategies for environmental prediction and adaptive responses.
 
 ---
 
@@ -106,7 +106,6 @@ MCMC-Bayesian-Learning-Strategies/
 cd "MBS_simulation/MBA vs BA sim"
 python -m wrappers.vanilla    # Basic MBA vs BA comparison
 python -m wrappers.stress     # Stress test scenarios
-python Fig_pub/create_fig1.py # Generate publication figures
 ```
 
 **Documentation**: See `MBS_simulation/MBA vs BA sim/README.md` for detailed usage and `CLEANED_REPOSITORY_SUMMARY.md` for architecture overview.
@@ -130,7 +129,7 @@ python Fig_pub/create_fig1.py # Generate publication figures
 
 **Operational Modes:**
 1. **Chemostat Mode**: Constant dilution rate, steady-state growth
-2. **Turbidostat Mode**: Optical density feedback control
+2. **Turbidostat Mode**: Optical density (cellpose) feedback control
 3. **Morbidostat Mode**: Dynamic drug concentration adjustment
 4. **Custom Protocols**: User-defined temporal sequences
 
@@ -255,45 +254,6 @@ cd Smart_incubator/Firmware
 
 **Full Documentation**: See `Smart_incubator/README.md` (400+ lines) and `Docs/parts_list.md` for complete BOM.
 
----
-
-### 4. Manuscript
-
-**Location**: `Manuscript/Draft_18_09_25.tex`
-
-**Content**: LaTeX source for the research paper, including:
-- Theoretical framework for cellular Bayesian inference
-- Agent-based simulation methodology and results
-- Experimental platform descriptions and protocols
-- Data analysis and statistical methods
-- Discussion of pre-neural learning mechanisms
-
----
-
-## Key Findings
-
-### Simulation Results
-
-1. **MBA Dominance in Predictive Environments**: When environmental cues reliably predict stressors (correlation = 1.0), MBAs consistently outcompete BAs across populations
-2. **Cost-Benefit Tradeoffs**: Memory maintenance costs are offset by preparatory advantages when predictions are reliable
-3. **Genetic Lock-In**: Learning strategies can become genetically encoded through repeated selection
-4. **Robustness**: MBA advantage persists across varying environmental timescales and stochasticity
-
-### Experimental Platform Capabilities
-
-1. **Temporal Resolution**: Both platforms achieve microsecond-level timing precision for stimulus delivery
-2. **Long-Term Stability**: Continuous operation for weeks with automated data logging and error recovery
-3. **Data Integrity**: Cryptographic verification ensures experimental reproducibility
-4. **Operational Resilience**: Automated sensor recovery and failsafe systems prevent data loss
-
-### Theoretical Implications
-
-- **Pre-Neural Computation**: Single cells can perform Bayesian-like inference without neural substrates
-- **Evolutionary Origins**: Learning mechanisms may predate nervous systems by billions of years
-- **Information Processing**: Cells encode environmental statistics in molecular states
-- **Anticipatory Behavior**: Predictive responses offer fitness advantages over purely reactive strategies
-
----
 
 ## Getting Started
 
@@ -330,40 +290,6 @@ python -m wrappers.vanilla
 2. Order components from parts_list.md BOMs
 3. Follow assembly guides in respective Docs/ directories
 4. Upload firmware and configure for your experiments
-
----
-
-## Research Applications
-
-### Cellular Biology
-- Chemotaxis and gradient sensing
-- Stress response mechanisms
-- Phenotypic plasticity
-- Quorum sensing dynamics
-
-### Evolutionary Biology
-- Learning strategy evolution
-- Fitness landscape analysis
-- Genetic versus epigenetic memory
-- Adaptation timescales
-
-### Synthetic Biology
-- Engineered cellular behaviors
-- Biosensor design
-- Programmable living systems
-- Minimal cognition implementations
-
-### Neuroscience
-- Pre-neural information processing
-- Evolutionary origins of learning
-- Distributed computation
-- Memory without synapses
-
-### Philosophy of Biology
-- Minimal cognition criteria
-- Agency at cellular level
-- Information-theoretic approaches to life
-- Predictive processing in simple systems
 
 ---
 
@@ -425,10 +351,7 @@ This repository contains:
 
 ## Contact
 
-**Principal Investigator**: [Name]  
-**Institution**: [Institution]  
-**Email**: [email@domain.com]  
-**Lab Website**: [URL]
+**Institution**: [IBE, CSIC Barcelona, MCG Lab ]  
 
 ### Contributing
 
@@ -449,16 +372,6 @@ For hardware modifications, include:
 - **Documentation**: Refer to platform-specific README files
 - **Hardware**: See respective parts_list.md for component sourcing
 
----
-
-## Acknowledgments
-
-This research was supported by [Funding Sources].
-
-We thank:
-- [Collaborators and advisors]
-- [Technical support staff]
-- [Open-source community contributors]
 
 ---
 
@@ -481,5 +394,5 @@ We thank:
 ---
 
 **Repository Structure Last Updated**: September 30, 2025  
-**Maintainers**: [Names]  
+**Maintainers**: [Maor Knafo]  
 **For questions or collaboration inquiries**: [Contact info]
