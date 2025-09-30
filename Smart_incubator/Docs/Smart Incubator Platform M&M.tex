@@ -1,0 +1,398 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{amsmath,amsfonts,amssymb}
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{longtable}
+\usepackage{array}
+\usepackage{geometry}
+\usepackage{fancyhdr}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\usepackage{natbib}
+\usepackage{microtype}
+\usepackage{url}
+
+% Page layout
+\geometry{
+  left=2.5cm,
+  right=2.5cm,
+  top=2.5cm,
+  bottom=2.5cm,
+  headheight=14pt
+}
+
+% Headers and footers
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{Smart Incubator Platform}
+\fancyhead[R]{Materials \& Methods}
+\fancyfoot[C]{\thepage}
+
+% JSON code styling
+\lstdefinelanguage{json}{
+    basicstyle=\ttfamily\small,
+    commentstyle=\color{gray},
+    stringstyle=\color{blue},
+    numbers=left,
+    numberstyle=\tiny\color{gray},
+    keywordstyle=\color{purple},
+    keywords={true,false,null},
+    string=[s]{"}{"},
+    comment=[l]{//},
+    morecomment=[s]{/*}{*/},
+    literate=
+        *{0}{{{\color{red}0}}}{1}
+         {1}{{{\color{red}1}}}{1}
+         {2}{{{\color{red}2}}}{1}
+         {3}{{{\color{red}3}}}{1}
+         {4}{{{\color{red}4}}}{1}
+         {5}{{{\color{red}5}}}{1}
+         {6}{{{\color{red}6}}}{1}
+         {7}{{{\color{red}7}}}{1}
+         {8}{{{\color{red}8}}}{1}
+         {9}{{{\color{red}9}}}{1}
+}
+
+\lstset{
+    language=json,
+    backgroundcolor=\color{gray!10},
+    frame=single,
+    breaklines=true,
+    captionpos=b
+}
+
+\title{\textbf{Smart Incubator Platform: Materials \& Methods}}
+\author{}
+\date{}
+
+\begin{document}
+
+\maketitle
+
+\section{Smart Incubator Platform}
+
+The Smart Incubator is an automated experimental platform designed to subject cell cultures to complex, long-term environmental protocols with precise temporal control. The system enables the study of phenotypic plasticity, predictive learning, and memory in microorganisms through controlled delivery of thermal stresses and sensory cues. Built on a modular MicroPython framework running on ESP32 hardware, the platform supports fully autonomous, multi-week experiments with comprehensive data logging and real-time monitoring capabilities.
+
+The incubator's design philosophy centers on creating a controllable ``learning environment'' where organisms experience predictable or unpredictable relationships between environmental cues (unconditional stimuli) and subsequent stressors (heat shocks). This approach allows researchers to test hypotheses about biological prediction, memory formation, and adaptive plasticity at the cellular level, providing insights into the evolutionary origins of learning behaviors that preceded neural systems.
+
+\subsection{Hardware and System Architecture}
+
+The platform is built around an ESP32-WROOM-32 microcontroller (240 MHz dual-core) that orchestrates all subsystems through a multi-layered software architecture. The system design emphasizes modularity, error resilience, and long-term stability, with comprehensive hardware safety features and automated recovery mechanisms.
+
+\begin{table}[H]
+\centering
+\caption{Smart Incubator Hardware Components and GPIO Pinout}
+\begin{tabularx}{\textwidth}{|l|l|X|l|}
+\hline
+\textbf{Component} & \textbf{Interface} & \textbf{Pin(s) \& Function} & \textbf{Specifications} \\
+\hline
+Control Unit & --- & ESP32-WROOM-32 & 240 MHz dual-core, 520 KB SRAM \\
+\hline
+Temperature Sensing & SPI (VSPI) & MAX31865 + PT100 RTD & SCK 18, MOSI 23, MISO 19, CS 5 \\
+\hline
+Thermal Actuators & PWM (1 kHz) & PTC Heater & Pin 33, MOSFET-controlled, 0-100\% duty \\
+\hline
+ & PWM (1 kHz) & TEC1 Peltier Cooler & Pin 27, MOSFET-controlled, 0-100\% duty \\
+\hline
+Unconditional Stimuli & PWM (1 kHz) & White LED Module & Pin 25, 0-100\% intensity control \\
+\hline
+ & PWM (1 kHz) & Vibration Motor & Pin 16, pulsed operation (20s on/60s off) \\
+\hline
+Data Storage & SPI (HSPI) & MicroSD Card Module & SCK 14, MOSI 13, MISO 12, CS 15, FAT32 \\
+\hline
+User Interface & I2C & SSD1306 128×64 OLED & SCL 22, SDA 21, real-time status display \\
+\hline
+\end{tabularx}
+\end{table}
+
+\subsubsection{Software Architecture}
+
+The system employs a multi-layered software architecture that separates high-level experimental logic from low-level hardware control, ensuring modularity, maintainability, and operational resilience:
+
+\textbf{Core System Layers:}
+\begin{enumerate}
+\item \textbf{Hardware Abstraction Layer:} Individual driver modules for each component (MAX31865, PWM controllers, SD card, OLED display)
+\item \textbf{Control Layer:} PID temperature controller, unconditional stimulus (US) controller with configurable timing patterns
+\item \textbf{Experiment Logic Layer:} Cycle management, correlation mode implementation, randomization algorithms
+\item \textbf{Data Management Layer:} Real-time logging, data integrity verification, manifest generation with SHA-256 checksums
+\item \textbf{Safety and Recovery Layer:} Automated initialization with retry logic (up to 5 attempts), comprehensive error handling, periodic memory cleanup
+\end{enumerate}
+
+\textbf{Key Software Features:}
+\begin{itemize}
+\item \textbf{Thread-safe SD card operations} with mutex locks for concurrent access
+\item \textbf{Robust initialization} with exponential backoff retry mechanisms
+\item \textbf{Memory management} via periodic garbage collection (every 5 minutes during operation)
+\item \textbf{Fault tolerance} with sensor noise filtering and temperature validation
+\item \textbf{Real-time monitoring} with OLED status updates and periodic system snapshots
+\item \textbf{Web server interface} (optional) for remote parameter adjustment and monitoring
+\end{itemize}
+
+\subsection{Thermal and Stimulus Control System}
+
+\subsubsection{Thermal Regulation System}
+
+The thermal control system employs a sophisticated dual-actuator design managed by a custom PID controller optimized for biological temperature ranges. The system provides both heating and cooling capabilities to achieve rapid, precise temperature transitions essential for learning paradigms.
+
+\textbf{PID Controller Configuration:}
+\begin{itemize}
+\item \textbf{Proportional gain (Kp):} 6.0 - provides rapid response to temperature deviations
+\item \textbf{Integral gain (Ki):} 0.02 - eliminates steady-state error with minimal overshoot
+\item \textbf{Derivative gain (Kd):} 1.5 - dampens oscillations and improves stability
+\item \textbf{Control deadband:} ±0.5°C around setpoint to prevent actuator chatter
+\item \textbf{Anti-windup mechanism:} Prevents integral term saturation during large setpoint changes
+\end{itemize}
+
+\textbf{Dual-Actuator Control:}
+\begin{itemize}
+\item \textbf{PTC Heater (Pin 33):} MOSFET-controlled PWM (0-100\%), provides heating from ambient to 40°C
+\item \textbf{TEC1 Peltier Cooler (Pin 27):} MOSFET-controlled PWM with safety cycling (3 min on/3 min off max), enables cooling below ambient temperature
+\end{itemize}
+
+\textbf{Temperature Sensing and Noise Filtering:}
+The MAX31865 RTD-to-digital converter interfaces with a PT100 platinum resistance temperature detector via SPI at 250 kHz for noise reduction. Advanced filtering algorithms ensure measurement reliability:
+
+\begin{itemize}
+\item \textbf{Multi-sample median filtering:} Each reading is the median of 5 rapid successive samples
+\item \textbf{Change-rate limiting:} Readings deviating >5°C from previous measurement are rejected
+\item \textbf{Fault detection:} Automatic detection and reporting of RTD faults (opens, shorts, voltage issues)
+\item \textbf{Retry logic:} Up to 3 attempts per reading with 50ms delays between retries
+\end{itemize}
+
+\textbf{Thermal Performance:}
+\begin{itemize}
+\item \textbf{Basal temperature (23°C):} Maintains ±0.5°C accuracy during steady-state operation
+\item \textbf{Heat shock temperature (32°C):} Achieves target within 2-3 minutes, maintains ±0.8°C accuracy
+\item \textbf{Cooling performance:} Can reduce temperature from 32°C to 23°C in approximately 5-8 minutes
+\item \textbf{Temperature range:} Operational from 15°C to 40°C (software limited for biological safety)
+\end{itemize}
+
+\subsubsection{Unconditional Stimulus (US) Delivery System}
+
+The platform delivers precisely timed unconditional stimuli through two independent modalities, allowing for complex multi-modal cueing paradigms or isolated stimulus presentation.
+
+\textbf{Optical Stimulation (LED Module - Pin 25):}
+\begin{itemize}
+\item \textbf{Configuration:} High-brightness white LED with PWM intensity control
+\item \textbf{Intensity range:} 0-100\% via 16-bit PWM resolution (65,535 discrete levels)
+\item \textbf{Default intensity:} 25\% (configurable via software)
+\item \textbf{Response characteristics:} Instantaneous on/off switching, uniform illumination
+\item \textbf{Wavelength:} Broad spectrum white light (380-700 nm)
+\end{itemize}
+
+\textbf{Mechanical Stimulation (Vibration Motor - Pin 16):}
+\begin{itemize}
+\item \textbf{Configuration:} Miniature vibration motor with PWM amplitude control
+\item \textbf{Intensity range:} 0-100\% via 16-bit PWM resolution
+\item \textbf{Default intensity:} 100\% (configurable via software)
+\item \textbf{Pulsing pattern:} Programmable on/off intervals (default: 20s on, 60s off)
+\item \textbf{Safety features:} Thermal protection via duty cycling to prevent motor overheating
+\item \textbf{Frequency:} Motor-dependent (typically 100-200 Hz resonant frequency)
+\end{itemize}
+
+\textbf{US Controller Features:}
+\begin{itemize}
+\item \textbf{Independent control:} Each modality can be activated separately or simultaneously
+\item \textbf{Temporal precision:} Microsecond-level timing accuracy for stimulus onset/offset
+\item \textbf{Dynamic intensity adjustment:} Real-time modification of stimulus parameters
+\item \textbf{Pattern generation:} Supports complex temporal patterns including bursts, ramps, and irregular sequences
+\item \textbf{State tracking:} Maintains accurate records of stimulus timing for data correlation
+\end{itemize}
+
+\textbf{Multi-Modal Stimulus Modes:}
+\begin{itemize}
+\item \textbf{``LED'':} Optical stimulation only
+\item \textbf{``VIB'':} Mechanical stimulation only  
+\item \textbf{``BOTH'':} Simultaneous optical and mechanical stimulation
+\item \textbf{``NONE'':} No stimulus delivery (control condition)
+\end{itemize}
+
+\section{Experimental Protocol Framework}
+
+The Smart Incubator implements a sophisticated experimental paradigm designed to test predictive learning and memory formation in microorganisms through controlled temporal relationships between environmental cues and thermal stressors.
+
+\subsection{Cycle-Based Experimental Design}
+
+\textbf{Randomized Cycle Architecture:}
+Each experiment consists of multiple discrete cycles with randomized durations to prevent temporal entrainment and habituation. This design ensures that organisms cannot rely on fixed timing patterns and must instead learn to associate cues with outcomes.
+
+\begin{itemize}
+\item \textbf{Cycle duration:} Randomized between configurable bounds (default: 200-400 minutes)
+\item \textbf{Phase structure:} Each cycle contains distinct basal and heat shock phases
+\item \textbf{Inter-cycle intervals:} Brief recovery periods (2-5 minutes) with system cleanup
+\item \textbf{Long-term stability:} Experiments can run continuously for weeks without intervention
+\end{itemize}
+
+\textbf{Thermal Protocol:}
+\begin{itemize}
+\item \textbf{Basal phase:} Extended period at optimal growth temperature (default: 23°C)
+\item \textbf{Heat shock phase:} Brief thermal stress period (default: 32°C for 30 minutes)
+\item \textbf{Temperature transitions:} Rapid heating (2-3 min) and controlled cooling (5-8 min)
+\item \textbf{Biological relevance:} Heat shock temperatures chosen to induce stress response without lethality
+\end{itemize}
+
+\subsection{Correlation Modes: Testing Predictive Relationships}
+
+The system's key innovation lies in its ability to create either predictable or unpredictable relationships between sensory cues (US) and thermal stressors (HS), enabling direct tests of biological prediction and learning.
+
+\textbf{Correlation Mode 0 (Non-Temporal Control):}
+\begin{itemize}
+\item \textbf{US timing:} Randomly distributed throughout the basal phase
+\item \textbf{HS timing:} Independently randomized within the cycle
+\item \textbf{Predictive value:} Zero correlation between cue and stressor
+\item \textbf{Measured stimulus-stress delta:} -58.1 ± 113.9 minutes (highly variable)
+\item \textbf{Biological interpretation:} Control condition testing non-associative responses
+\end{itemize}
+
+\textbf{Correlation Mode 1 (Temporal Predictive):}
+\begin{itemize}
+\item \textbf{US timing:} Fixed interval before heat shock onset (default: 30 minutes)
+\item \textbf{HS timing:} Consistent relative to US presentation
+\item \textbf{Predictive value:} Perfect correlation enabling prediction
+\item \textbf{Measured stimulus-stress delta:} 30.0 ± 0.3 minutes (highly precise)
+\item \textbf{Biological interpretation:} Tests capacity for predictive learning and preparation
+\end{itemize}
+
+\subsection{Advanced Protocol Capabilities}
+
+\textbf{Landscape Execution Mode:}
+The system supports complex, pre-programmed experimental landscapes loaded from CSV files, enabling:
+\begin{itemize}
+\item \textbf{Multi-parameter protocols:} Simultaneous control of temperature, LED, and vibration over time
+\item \textbf{Complex waveforms:} Sinusoidal, ramp, step, and custom temperature profiles
+\item \textbf{Synchronized stimuli:} Precise coordination of thermal and sensory modalities
+\item \textbf{Long-term experiments:} Automated execution of protocols lasting days to weeks
+\end{itemize}
+
+\textbf{Adaptive Parameter Control:}
+\begin{itemize}
+\item \textbf{Real-time adjustment:} Parameters can be modified during ongoing experiments
+\item \textbf{Web interface:} Remote monitoring and control capabilities
+\item \textbf{Fail-safe mechanisms:} Automatic parameter bounds checking and safety cutoffs
+\item \textbf{State preservation:} System maintains experimental state through power cycles
+\end{itemize}
+
+\section{Data Acquisition and Integrity Management}
+
+The Smart Incubator implements a comprehensive data logging system designed for high-resolution temporal tracking of all experimental parameters with robust integrity verification mechanisms.
+
+\subsection{High-Resolution Data Logging}
+
+\textbf{Temporal Resolution:}
+\begin{itemize}
+\item \textbf{Sampling rate:} Complete system snapshot every 10 seconds
+\item \textbf{Logging precision:} Microsecond-accurate timestamps for all events
+\item \textbf{Data synchronization:} All measurements time-locked to system clock
+\item \textbf{Buffer management:} Thread-safe data queuing with overflow protection
+\end{itemize}
+
+\textbf{Comprehensive Parameter Tracking:}
+Each data snapshot captures the complete system state:
+
+\begin{lstlisting}[language=json,caption={Example data snapshot structure}]
+{
+  "timestamp": 18883,           // Unix timestamp (seconds)
+  "temp": 31.63,               // Current temperature (°C)
+  "set_temp": 23.0,            // Target temperature (°C)
+  "power": -89.55,             // PID controller output (%)
+  "mode": "Cooling",           // Controller state
+  "tec_state": "On",           // Cooler activation status
+  "us_active": 0,              // Stimulus delivery state
+  "elapsed_minutes": 0.17,     // Time within current cycle
+  "cycle_length": 242,         // Total cycle duration (minutes)
+  "phase": "basal",            // Current experimental phase
+  "cycle_num": 2,              // Sequential cycle identifier
+  "experiment_id": "0_0",      // Unique experiment identifier
+  "firmware": "1.0.0"          // System version tracking
+}
+\end{lstlisting}
+
+\subsection{Data Organization and File Structure}
+
+\textbf{Hierarchical Directory Structure:}
+\begin{verbatim}
+data/
+├── [EXPERIMENT_ID]/          // Format: DDMMYYYY_correlation
+│   ├── meta.json            // Experiment parameters and metadata
+│   ├── manifest.json        // Data integrity verification
+│   ├── cycle_[N]_[TIMESTAMP].json    // Individual data snapshots
+│   └── cycle_[N]_summary.json       // Cycle statistics and summaries
+\end{verbatim}
+
+\textbf{File Type Specifications:}
+
+\textbf{Metadata Files (\texttt{meta.json}):}
+\begin{itemize}
+\item Complete experimental parameter set
+\item System configuration and hardware details
+\item Firmware version and initialization timestamp
+\item Correlation mode and protocol specifications
+\end{itemize}
+
+\textbf{Data Snapshots (\texttt{cycle\_[N]\_[TIMESTAMP].json}):}
+\begin{itemize}
+\item Real-time system measurements at 10-second intervals
+\item Complete thermal, stimulus, and timing information
+\item Error flags and diagnostic data
+\item Memory usage and system health metrics
+\end{itemize}
+
+\textbf{Cycle Summaries (\texttt{cycle\_[N]\_summary.json}):}
+\begin{itemize}
+\item Statistical analysis of cycle performance
+\item Temperature stability metrics (min/max/mean/std)
+\item Stimulus delivery statistics and timing accuracy
+\item Error counts and fault reports
+\item Cycle duration and phase transition timing
+\end{itemize}
+
+\subsection{Data Integrity and Verification}
+
+\textbf{Cryptographic Integrity Checking:}
+\begin{itemize}
+\item \textbf{SHA-256 checksums:} Generated for all data files in real-time
+\item \textbf{Manifest tracking:} Central registry of all files with verification hashes
+\item \textbf{Corruption detection:} Automatic verification on system startup and data access
+\item \textbf{Recovery mechanisms:} Damaged file detection with automated alerts
+\end{itemize}
+
+\textbf{Robust Storage Management:}
+\begin{itemize}
+\item \textbf{FAT32 compatibility:} Cross-platform file system support
+\item \textbf{Atomic writes:} Ensures data consistency during power interruptions
+\item \textbf{Space monitoring:} Automatic disk usage tracking with low-space warnings
+\item \textbf{Backup strategies:} Support for redundant storage systems
+\end{itemize}
+
+\textbf{Data Validation:}
+\begin{itemize}
+\item \textbf{Range checking:} All sensor readings validated against physical limits
+\item \textbf{Temporal consistency:} Timestamp sequence verification
+\item \textbf{Cross-parameter validation:} Logical consistency checks between related measurements
+\item \textbf{Missing data detection:} Automatic identification and flagging of data gaps
+\end{itemize}
+
+\subsection{Analysis and Export Capabilities}
+
+\textbf{Built-in Analysis Tools:}
+\begin{itemize}
+\item \textbf{Statistical summaries:} Automated calculation of experimental metrics
+\item \textbf{Correlation analysis:} Quantitative assessment of stimulus-response relationships
+\item \textbf{Performance visualization:} Real-time plotting of key parameters
+\item \textbf{Export utilities:} JSON, CSV, and binary format support for external analysis
+\end{itemize}
+
+\textbf{Research Integration:}
+\begin{itemize}
+\item \textbf{Standard formats:} Compatible with common scientific data analysis platforms
+\item \textbf{Metadata preservation:} Complete provenance tracking for reproducibility
+\item \textbf{Version control:} Built-in experiment versioning and comparison tools
+\item \textbf{Quality metrics:} Automated assessment of data completeness and reliability
+\end{itemize}
+
+\end{document}

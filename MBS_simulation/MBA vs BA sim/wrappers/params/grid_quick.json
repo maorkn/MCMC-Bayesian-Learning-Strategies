@@ -1,0 +1,10 @@
+{
+  "epsilon": [0.0, 0.2],
+  "learning_rate": [0.1, 0.5],
+  "cost_multiplier": [1.0],
+  "penalty": [0.6, 0.8],
+  "permutations": [
+    "0,1,2,3,4",
+    "4,3,2,1,0"
+  ]
+}

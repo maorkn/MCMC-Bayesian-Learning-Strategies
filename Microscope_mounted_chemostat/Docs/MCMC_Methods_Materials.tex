@@ -1,0 +1,326 @@
+\section{MCMC Microscope Chemostat Platform}
+
+The MCMC (Microscope Chemostat) platform is an automated experimental system designed to convert standard laboratory microscopes into sophisticated continuous culture reactors with real-time cell counting and adaptive control capabilities. The system enables long-term microbiology experiments with precise environmental control, automated cell density management, and coordinated multi-channel flow control. Built on a distributed ESP32 microcontroller architecture with Python-based host coordination, the platform supports fully autonomous chemostat, turbidostat, and morbidostat operation modes with comprehensive data logging and real-time monitoring.
+
+The platform's design philosophy centers on creating a modular, scalable system where multiple independent culture channels can be operated simultaneously under different experimental conditions. This approach allows researchers to conduct comparative studies, test multiple hypotheses in parallel, and perform high-throughput screening experiments while maintaining precise temporal and environmental control over each culture system.
+
+\subsection{Hardware and System Architecture}
+
+The MCMC platform employs a distributed microcontroller architecture consisting of multiple ESP32-WROOM-32 nodes (240 MHz dual-core) orchestrated through MQTT communication protocols. The system design emphasizes modularity, fault tolerance, and real-time responsiveness, with comprehensive safety features and automated error recovery mechanisms.
+
+\begin{table}[H]
+\centering
+\caption{MCMC Platform Hardware Components and GPIO Assignments}
+\begin{tabularx}{\textwidth}{|l|l|X|l|}
+\hline
+\textbf{Component} & \textbf{Interface} & \textbf{Pin(s) \& Function} & \textbf{Specifications} \\
+\hline
+\multicolumn{4}{|c|}{\textbf{ESP-T Temperature Controller}} \\
+\hline
+Control Unit & --- & ESP32-WROOM-32 & 240 MHz dual-core, 520 KB SRAM \\
+\hline
+Temperature Sensing & SPI & MAX31865 + PT100 RTD & SCK 18, MOSI 23, MISO 19, CS 5 \\
+\hline
+Thermal Actuators & PWM (1 kHz) & PTC Heater & Pin 33, MOSFET-controlled, 0-100\% duty \\
+\hline
+ & PWM (1 kHz) & TEC Peltier Cooler & Pin 27, MOSFET-controlled, 0-100\% duty \\
+\hline
+Data Storage & SPI & MicroSD Card Module & Daily rotating CSV logs, FAT32 \\
+\hline
+Status Indication & Digital & Status LED & Pin 2, heating/cooling/idle/emergency states \\
+\hline
+\multicolumn{4}{|c|}{\textbf{ESP-C Channel Controllers (3×)}} \\
+\hline
+Peristaltic Pumps & PWM (20 kHz) & Media Pump & Pin 25, 0-100\% flow control \\
+\hline
+ & PWM (20 kHz) & Signal Pump & Pin 26, independent injection control \\
+\hline
+ & PWM (20 kHz) & Chamber Pump & Pin 27, coordinated with media pump \\
+\hline
+ & PWM (20 kHz) & Overflow Pump & Pin 32, 3× duration multiplier \\
+\hline
+Illumination & PWM (20 kHz) & LED Array & Pin 33, 0-100\% intensity control \\
+\hline
+Status Indication & Digital & Built-in LED & Pin 2, operational status display \\
+\hline
+\multicolumn{4}{|c|}{\textbf{Host Computer Integration}} \\
+\hline
+Microscope Camera & USB & Standard USB Camera & 640×480 resolution, real-time imaging \\
+\hline
+MQTT Broker & Network & Mosquitto Broker & 192.168.1.x, no authentication \\
+\hline
+Analysis Engine & Software & Cellpose Integration & CPU/GPU cell segmentation \\
+\hline
+\end{tabularx}
+\end{table}
+
+\subsubsection{Distributed Control Architecture}
+
+The system employs a hierarchical control architecture that separates low-level hardware control from high-level experimental logic, ensuring modularity, scalability, and operational resilience:
+
+\textbf{Hardware Layer (ESP32 Nodes):}
+\begin{enumerate}
+\item \textbf{ESP-T Temperature Controller:} Dedicated PID temperature regulation with safety cutoffs and sensor fault detection
+\item \textbf{ESP-C Channel Controllers:} Independent flow control nodes managing 4 pumps + LED per culture channel
+\item \textbf{Distributed Communication:} MQTT-based inter-node coordination with automatic reconnection
+\item \textbf{Local Data Logging:} Each node maintains 24-hour rolling logs on microSD cards for fault tolerance
+\end{enumerate}
+
+\textbf{Host Coordination Layer (Python):}
+\begin{enumerate}
+\item \textbf{MQTT Broker:} Central message routing using Mosquitto (no authentication for research environment)
+\item \textbf{Mode Controllers:} Chemostat, turbidostat, morbidostat, and aggregation-stat algorithm implementations
+\item \textbf{Real-time Analysis:} Cellpose-based cell counting with automatic GPU/CPU fallback
+\item \textbf{Experiment Coordination:} Multi-channel synchronization and parameter management
+\end{enumerate}
+
+\textbf{Key Software Features:}
+\begin{itemize}
+\item \textbf{Asynchronous operation} with non-blocking timer-based control loops
+\item \textbf{Automatic error recovery} with exponential backoff retry mechanisms  
+\item \textbf{Real-time telemetry} at 1 Hz sampling rate for all system parameters
+\item \textbf{Emergency stop capability} with immediate hardware shutdown via global MQTT command
+\item \textbf{Hot-swappable configuration} allowing parameter updates during operation
+\item \textbf{Comprehensive logging} with structured JSON data format and cryptographic integrity checking
+\end{itemize}
+
+\subsection{Flow Control and Pump Coordination System}
+
+\subsubsection{Multi-Channel Peristaltic Pump System}
+
+The MCMC platform employs a sophisticated four-pump coordination system per channel, optimized for continuous culture applications with precise flow rate control and temporal coordination.
+
+\textbf{Pump Configuration and Flow Scheme:}
+\begin{itemize}
+\item \textbf{Media Pump (Pump 1):} Fresh medium delivery with calibrated flow rates (0-15 ml/h)
+\item \textbf{Signal Pump (Pump 2):} Independent signal/drug injection with precise timing control
+\item \textbf{Chamber Pump (Pump 3):} Culture delivery pump, coordinated with media pump for mixing
+\item \textbf{Overflow Pump (Pump 4):} Waste removal with 3× duration multiplier for complete evacuation
+\end{itemize}
+
+\textbf{Flow Coordination Algorithm:}
+\begin{itemize}
+\item \textbf{Synchronized operation:} Media and chamber pumps operate simultaneously for T seconds
+\item \textbf{Extended overflow:} Overflow pump continues for 3T seconds to ensure complete evacuation
+\item \textbf{Independent signaling:} Signal pump operates on-demand with separate timing control
+\item \textbf{Non-blocking operation:} Timer-based control allows command acceptance during active cycles
+\end{itemize}
+
+\textbf{PWM Control and Calibration:}
+The system employs high-frequency PWM control (20 kHz) with comprehensive calibration for precise flow rate delivery:
+
+\begin{itemize}
+\item \textbf{Resolution:} 13-bit PWM resolution (8,191 discrete levels) for fine flow control
+\item \textbf{Calibration model:} Linear relationship: Flow Rate (ml/h) = a × PWM\% + b
+\item \textbf{Voltage profiles:} Configurable for 5V or 12V pump operation with optimized frequency settings
+\item \textbf{Pulsing capability:} Sub-minimum flow rates achieved through duty cycling for ultra-low delivery rates
+\item \textbf{Real-time adjustment:} Flow rates modifiable during operation without interrupting other pumps
+\end{itemize}
+
+\textbf{Flow Rate Performance:}
+\begin{itemize}
+\item \textbf{Range:} 0.1-15 ml/h per pump with ±5\% accuracy after calibration
+\item \textbf{Minimum flow:} 0.05 ml/h achieved through 1-minute duty cycling
+\item \textbf{Response time:} <1 second for flow rate changes
+\item \textbf{Stability:} ±2\% variation during continuous operation over 24-hour periods
+\end{itemize}
+
+\subsubsection{Temperature Regulation System}
+
+The thermal control system employs a dual-actuator PID controller optimized for biological temperature ranges with comprehensive safety features and fault tolerance.
+
+\textbf{PID Controller Configuration:}
+\begin{itemize}
+\item \textbf{Asymmetric gains:} Heating gain = 1.0, Cooling gain = 1.35 (optimized for actuator characteristics)
+\item \textbf{Update frequency:} 1 Hz control loop with 250 ms sensor sampling
+\item \textbf{Safety cutoff:} Hard limit at 42°C with immediate actuator shutdown
+\item \textbf{Anti-windup protection:} Prevents integral term saturation during large setpoint changes
+\item \textbf{Deadband control:} ±0.2°C around setpoint to prevent actuator chatter
+\end{itemize}
+
+\textbf{Dual-Actuator Control:}
+\begin{itemize}
+\item \textbf{PTC Heater (Pin 33):} MOSFET-controlled PWM for heating from ambient to 40°C
+\item \textbf{TEC Peltier Cooler (Pin 27):} MOSFET-controlled PWM with thermal cycling protection
+\item \textbf{Coordinated operation:} Automatic switching between heating and cooling modes
+\item \textbf{Thermal protection:} Maximum duty cycle limits to prevent actuator damage
+\end{itemize}
+
+\textbf{Temperature Sensing and Validation:}
+\begin{itemize}
+\item \textbf{Sensor:} PT100 platinum RTD with MAX31865 digital converter
+\item \textbf{Accuracy:} ±0.1°C absolute accuracy over 15-40°C operating range
+\item \textbf{Noise filtering:} Median filtering of 5 successive readings with outlier rejection
+\item \textbf{Fault detection:} Automatic detection of sensor opens, shorts, and wiring faults
+\item \textbf{Retry logic:} Up to 3 attempts per reading with exponential backoff
+\end{itemize}
+
+\section{Real-Time Cell Analysis and Control Modes}
+
+The MCMC platform implements sophisticated closed-loop control algorithms based on real-time cell counting and analysis, enabling autonomous adaptation to culture dynamics.
+
+\subsection{Cellpose Integration and Image Processing}
+
+\textbf{Real-Time Cell Counting Pipeline:}
+\begin{itemize}
+\item \textbf{Image acquisition:} USB microscope camera with 640×480 resolution at configurable intervals
+\item \textbf{Cellpose processing:} Deep learning-based cell segmentation with cyto model
+\item \textbf{GPU/CPU fallback:} Automatic hardware detection with performance optimization
+\item \textbf{Cell density calculation:} Automated conversion from cell counts to cells/ml with volume calibration
+\item \textbf{Quality control:} Image quality assessment and automatic retry on poor segmentation
+\end{itemize}
+
+\textbf{Analysis Performance:}
+\begin{itemize}
+\item \textbf{Processing time:} 2-5 seconds per frame (GPU) or 10-30 seconds (CPU)
+\item \textbf{Detection accuracy:} >95\% for well-separated individual cells
+\item \textbf{Density range:} 10³-10⁷ cells/ml with automatic dilution factor adjustment
+\item \textbf{Temporal resolution:} Configurable from 30 seconds to 10 minutes between analyses
+\end{itemize}
+
+\subsection{Autonomous Control Modes}
+
+\textbf{Chemostat Mode:}
+\begin{itemize}
+\item \textbf{Principle:} Constant dilution rate with continuous medium supply
+\item \textbf{Control parameter:} Fixed flow rate independent of cell density
+\item \textbf{Applications:} Steady-state physiology studies, metabolic characterization
+\item \textbf{Typical parameters:} Dilution rates 0.1-1.0 h⁻¹ with 24-72 hour equilibration
+\end{itemize}
+
+\textbf{Turbidostat Mode:}
+\begin{itemize}
+\item \textbf{Principle:} Constant cell density maintenance through feedback control
+\item \textbf{Control parameter:} Cell density setpoint (default: 1×10⁶ cells/ml)
+\item \textbf{Trigger threshold:} Configurable hysteresis band (default: ±20\% of setpoint)
+\item \textbf{Response algorithm:} Proportional dilution based on density deviation
+\item \textbf{Applications:} Growth rate measurements, evolutionary experiments
+\end{itemize}
+
+\textbf{Morbidostat Mode:}
+\begin{itemize}
+\item \textbf{Principle:} Adaptive drug concentration based on growth response
+\item \textbf{Control logic:} Increase drug concentration when growth exceeds threshold
+\item \textbf{Drug delivery:} Automated via signal pump with precise concentration control
+\item \textbf{Applications:} Antibiotic resistance evolution, drug efficacy screening
+\end{itemize}
+
+\textbf{Signal Injection System:}
+\begin{itemize}
+\item \textbf{Trigger conditions:} Cell density thresholds, time-based schedules, or manual commands
+\item \textbf{Injection precision:} ±1\% volume accuracy with 0.1 ml minimum delivery
+\item \textbf{Coordination:} Synchronized with chemostat cycles to prevent washout
+\item \textbf{Multi-modal delivery:} Support for multiple signal types per experiment
+\end{itemize}
+
+\section{Communication Protocol and Data Management}
+
+The MCMC platform implements a comprehensive MQTT-based communication system with structured data logging and integrity verification mechanisms.
+
+\subsection{MQTT Communication Architecture}
+
+\textbf{Topic Structure and Message Protocol:}
+
+\begin{table}[H]
+\centering
+\caption{MQTT Topic Structure and Payload Specifications}
+\begin{tabularx}{\textwidth}{|l|l|X|}
+\hline
+\textbf{Topic Pattern} & \textbf{Direction} & \textbf{JSON Payload Example} \\
+\hline
+\multicolumn{3}{|c|}{\textbf{Command Topics (Host → ESP32)}} \\
+\hline
+\texttt{cmd/chan\{n\}/pump\{m\}} & Host → ESP-C & \texttt{\{"duty": 75, "dur": 60\}} \\
+\hline
+\texttt{cmd/chan\{n\}/led} & Host → ESP-C & \texttt{\{"duty": 50, "dur": 120\}} \\
+\hline
+\texttt{cmd/temp} & Host → ESP-T & \texttt{\{"setpoint": 37.0\}} \\
+\hline
+\texttt{cmd/kill} & Host → All & \texttt{\{\}} (Emergency stop) \\
+\hline
+\multicolumn{3}{|c|}{\textbf{Status Topics (ESP32 → Host)}} \\
+\hline
+\texttt{stat/temp} & ESP-T → Host & \texttt{\{"T": 36.8, "setpoint": 37.0, "PTC\_PWM": 25, "TEC\_PWM": 0, "mode": "heating"\}} \\
+\hline
+\texttt{stat/chan\{n\}} & ESP-C → Host & \texttt{\{"pump\_duty": [0, 0, 75, 25], "led\_duty": 0, "cycle\_active": true\}} \\
+\hline
+\multicolumn{3}{|c|}{\textbf{Sensor Topics (Host ↔ Host)}} \\
+\hline
+\texttt{sensor/cellpose\{n\}/count} & Analysis → Control & \texttt{\{"count": 1250000, "timestamp": 1700000000.123\}} \\
+\hline
+\texttt{config/chan\{n\}/turbido} & Control → ESP-C & \texttt{\{"enabled": true, "target": 1000000, "threshold": 1200000\}} \\
+\hline
+\end{tabularx}
+\end{table}
+
+\textbf{Communication Features:}
+\begin{itemize}
+\item \textbf{QoS Level 1:} At-least-once delivery for critical commands
+\item \textbf{Retained messages:} System state persistence across reconnections
+\item \textbf{Automatic reconnection:} Exponential backoff with maximum 60-second intervals
+\item \textbf{Message validation:} JSON schema validation with error reporting
+\item \textbf{Timestamp synchronization:} Unix timestamp precision for temporal correlation
+\end{itemize}
+
+\subsection{Data Logging and Integrity Management}
+
+\textbf{Hierarchical Data Organization:}
+
+\begin{verbatim}
+experiment_data/
+├── [EXPERIMENT_ID]/              // Format: YYYYMMDD_HHMMSS_mode
+│   ├── metadata/
+│   │   ├── experiment_config.json    // Initial parameters and settings
+│   │   ├── calibration_data.json     // Pump and sensor calibrations
+│   │   └── system_manifest.json      // File integrity checksums
+│   ├── temperature/
+│   │   ├── esp_t_local_YYYYMMDD.csv  // Local ESP-T logs (backup)
+│   │   └── temperature_1hz.csv       // Host-aggregated temperature data
+│   ├── channels/
+│   │   ├── channel_1_status.csv      // Pump duties, LED states, cycle info
+│   │   ├── channel_1_cellpose.csv    // Cell counts and analysis data
+│   │   └── channel_1_events.json     // Discrete event logging
+│   └── analysis/
+│       ├── growth_curves.csv         // Derived growth rate data
+│       ├── control_events.json       // Mode switching and interventions
+│       └── summary_statistics.json   // Experiment-wide metrics
+\end{verbatim}
+
+\textbf{Data Integrity and Quality Assurance:}
+\begin{itemize}
+\item \textbf{Cryptographic validation:} SHA-256 checksums for all data files
+\item \textbf{Temporal consistency:} Automatic timestamp validation and gap detection
+\item \textbf{Cross-validation:} Parameter consistency checks between ESP32 nodes and host
+\item \textbf{Redundant storage:} Local ESP32 logging provides backup for network failures
+\item \textbf{Real-time monitoring:} Continuous data quality assessment with automated alerts
+\end{itemize}
+
+\textbf{Analysis and Export Capabilities:}
+\begin{itemize}
+\item \textbf{Real-time visualization:} Live plots of key parameters during experiments
+\item \textbf{Standard format export:} CSV, JSON, and HDF5 format support
+\item \textbf{Metadata preservation:} Complete experimental provenance for reproducibility
+\item \textbf{Statistical analysis:} Built-in growth rate calculation and curve fitting
+\item \textbf{Integration support:} Compatible with R, Python, and MATLAB analysis pipelines
+\end{itemize}
+
+\subsection{Safety Systems and Error Handling}
+
+\textbf{Multi-Level Safety Architecture:}
+\begin{itemize}
+\item \textbf{Hardware level:} Temperature cutoffs, pump current limiting, watchdog timers
+\item \textbf{Firmware level:} Parameter validation, sensor fault detection, emergency stops
+\item \textbf{Communication level:} Command authentication, rate limiting, timeout handling
+\item \textbf{System level:} Global emergency stop, automatic safe-state transitions
+\end{itemize}
+
+\textbf{Fault Tolerance and Recovery:}
+\begin{itemize}
+\item \textbf{Network resilience:} Automatic WiFi reconnection with local operation continuity
+\item \textbf{Sensor redundancy:} Multiple validation methods for critical measurements
+\item \textbf{Graceful degradation:} System continues with reduced functionality during partial failures
+\item \textbf{State recovery:} Automatic restoration of operational parameters after power cycles
+\item \textbf{Diagnostic logging:} Comprehensive error tracking for system maintenance
+\end{itemize}
+
+\end{document}

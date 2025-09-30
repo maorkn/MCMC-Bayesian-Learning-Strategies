@@ -1,0 +1,738 @@
+\documentclass[aps,pre,twocolumn,floatfix,nofootinbib,amsmath,amssymb]{revtex4-2}
+
+\usepackage{times}
+\usepackage{natbib}
+\usepackage{graphicx}
+%\usepackage[dvips]{graphicx}
+\usepackage{amsmath}
+\usepackage{graphicx}
+\usepackage{subfigure}
+\usepackage{xcolor}
+\usepackage{calrsfs}
+
+
+\begin{document}
+
+\providecommand{\CSL}{Complex Systems Lab, Universitat Pompeu Fabra, Dr. Aiguader 88, 08003 Barcelona.}
+\providecommand{\IBE}{Institut de Biologia Evolutiva, CSIC-UPF, Pg Maritim Barceloneta 37, 08003 Barcelona.}
+\providecommand{\SFI}{Santa Fe Institute, 1399 Hyde Park Road, Santa Fe NM 87501, United States.}
+
+\title{Beyond Diffusion: Bayesian Learning Strategies in Single-Cell Life}
+
+\author{Maor Knafo}
+\email[Corresponding author, ]{}
+\affiliation{\IBE}
+\author{Elena Casacuberta}
+\affiliation{\IBE}
+\author{Ricard Sol\'e}
+\affiliation{\CSL}
+\affiliation{\IBE}
+\affiliation{\SFI}
+\author{I\~naki Ruiz-Trillo}
+\affiliation{\ICREA}
+\affiliation{\IBE}
+
+% =============================================================================
+% BEGIN DOCUMENT
+
+\begin{abstract}
+Traditional evolutionary theory frames biological adaptation as a product of natural selection acting over generations on populations of blind, open-circuit agents. In this view, adaptation emerges passively through undirected variability and external selection pressures. Here, we propose a conceptual shift: modeling individual organisms as learning agents capable of building, refining, and testing internal models of environmental states. Unlike classical open-loop systems, these agents iteratively update beliefs through inference, adjust phenotypic behaviors in real time, and optimize fitness by predictive, rather than purely reactive, mechanisms. We formalize this idea mathematically, describing learning agents that maintain and revise a hidden internal state space based on sensory cues, assign valence to predictors, habituate to diminishing signals, and refine behavior based on prediction error dynamics. To pursue these questions experimentally, we present a suite of designed and fabricated systems, including 3D-printed experimental arenas integrating multisensory cues (light, sensorimotor stimuli, etc) and structured environments for probing aggregation and information-sharing in unicellular organisms such as \textit{Capsaspora owczarzaki}. These platforms aim to test the extent to which even basal agents exhibit iterative model-building capacities traditionally attributed to higher cognition. We advocate that recognizing biological systems as active, learning-centered agents, even at the unicellular level, bridges evolutionary theory with emerging ideas in active inference, basal cognition, and adaptive dynamics, offering a new paradigm for understanding biological adaptation beyond passive selection alone.
+\end{abstract}
+\keywords{Anticipation, Basal cognition, Stochastic environment, Adaptive behavior}
+
+\maketitle
+
+
+\section{Introduction}
+
+One of life's most remarkable features is its persistent and adaptive resilience in the face of constant environmental fluctuations \citep{shaw_rapid_2012,messer_can_2016,messer_population_2013}. Organisms across all biological domains routinely overcome severe internal and external stressors, highlighting fundamental adaptive mechanisms that allow rapid and flexible responses \citep{blake_noise_2003,coomer_noise_2022}. Understanding precisely how organisms accomplish this resilience remains a central question in biology, essential for unraveling the nature of adaptation itself.
+
+Classical quantitative genetic models, particularly the canonical Wright–Fisher \citep{tataru_statistical_2017} and Kimura \citep{kimura_model_1979} frameworks, conceptualize adaptation as a gradual, population-level process driven by stochastic genetic mutations. These mutations, selected across generations, slowly refine organismal fitness in stable or nearly optimal environments, situations captured well by "Red Queen" dynamics \citep{sole_revisiting_2022,khibnik_three_1997,van_valen_new_1973}, where continual adaptation is necessary to maintain relative fitness. Within these models, genotype and phenotype are tightly and deterministically linked, with each mutation mapping directly to a fixed fitness value, resulting in an allele's eventual fixation or loss due to drift.
+
+While modern population genetics models offer much more sophisticated explanations and insights \citep{desai_beneficial_2007,good_dynamics_2017,levy_quantitative_2015} of the underlying dynamics within these systems, they deal with the same highly constant environments and as such fall short in capturing critical aspects of rapid adaptation \citep{zheng_cryptic_2019,paaby_cryptic_2014,forsman_rethinking_2015}, especially phenotypic plasticity, the capacity of a single genotype to express multiple phenotypes in response to environmental cues. These models treat plastic responses as mere noise rather than recognizing them as potentially primary adaptive mechanisms \citep{forsman_rethinking_2015,lyon_reframing_2021}. Consequently, they cannot account for environments that dynamically compress or expand phenotypic variance without genetic mutations. Allele frequencies alone fail to reveal the expressed phenotypic diversity or the latent adaptive potential hidden within a genotype \citep{zheng_cryptic_2019,paaby_cryptic_2014,ayroles_behavioral_2015}. Secondly, they ignore facultative aggregation \citep{sebe-pedros_regulated_2013,ros-rocher_chemical_2023,schwartzman_bacterial_2022}, and other forms of fuzzy genotype–phenotype mapping: many microbes transiently form collectives whose fitness is assessed at the aggregate level. Aggregation pools behavioral/epigenetic states (e.g., chromatin marks, prion-like switches), blurring one-genotype/one-phenotype assumptions and enabling non-vertical information transfer that standard lineage-centric analyses miss.
+
+These omissions matter empirically. High-level antibiotic resistance can appear within weeks; \textit{Pseudomonas} tolerates colistin in $<$10 days \citep{alarcon_rios_colistin_2025}; drug-resistant cancers emerge over a single therapy course \citep{dagogo-jack_tumour_2018,franca_cellular_2024}; mosquito populations acquire multi-insecticide resistance between spray cycles \citep{oruni_temporal_2024}. Under classical diffusion with realistic mutation rates and fixation probabilities, expected waiting times are orders of magnitude longer, unless one invokes implausible effective sizes or hyper-mutators. A more plausible route is cue-driven phenotypic exploration \citep{acar_stochastic_2008}: efflux up-regulation, membrane remodeling, persister formation, many conformations of proteins, and the chaperoning mechanisms involved in their enforcement \citep{blake_noise_2003}. These states arise plastically and may later be hardwired by mutation via genetic assimilation \citep{waddington_genetic_1953,crispo_baldwin_2007}. Interpreted through active-inference principles, cells may use internal models to minimize prediction error about forthcoming states and deploy preparatory phenotypes when cues are reliable \citep{lyon_reframing_2021}.
+
+Capturing these hidden dynamics fundamentally requires the ability to distinguish transient, plastic explorations from fixed, genetic sweeps in real time, while modulating the environment in a precise, reproducible way. To achieve this, we introduce a dual framework. We will present a working model along with microfabricated experimental cognitive arenas. In addition, we propose a time-resolved and lineage-resolved barcode measurement technique that will enable us to link genotypes to unique molecular barcodes. This setup will allow us to track how populations explore phenotype space during stress, quantifying both outer (population-level) and inner (within-lineage) Shannon entropy in highly competitive cognitive experimental setups. The platform we suggest will help distinguish genuine genetic sweeps from plastic expansions and will document when exploratory behaviors precede the pruning effects of selection and genetic assimilation.
+
+Microbial eukaryotes are ideal for the tests outlined \citep{tikhonenkov_insights_2020,ros-rocher_origin_2021}: compact genomes, rich regulatory toolkits (signal transduction, chromatin remodeling, adhesion), rapid growth, precise editing \citep{phillips_genome_2022}, and compatibility with microfluidics and high-throughput phenotyping. \textit{Capsaspora owczarzaki} (from herein \textit{Capsaspora}), a free-living close relative of free-living animals (within the Holozoa clade), is especially suitable: encodes integrin / kinase signaling, calcium-dependent adhesion, extensive chromatin machinery \citep{sebe-pedros_ancient_2010,suga_capsaspora_2013,ruiz-trillo_origin_2023}, and exhibits facultative aggregation, enabling direct tests of collective information grouping demonstrating a highly capable regulatory complexity \citep{sebe-pedros_regulated_2013}.
+
+We construct a model hypothesizing that some single-celled eukaryotes function as Markovian–Bayesian Agents (MBAs), organisms that update internal models within a lifetime and use cues to guide phenotype choice, contrasted with a classical Blind Agent (BA) null that relies solely on hard-coded genetic strategies. To evaluate this, we take a two-pronged approach. \textit{In silico}, we compare MBA and BA populations across controlled environmental regimes that vary in cue predictability, landscape structure, and plasticity cost, deriving falsifiable predictions (e.g., an MBA-to-BA crossover as cue reliability declines). \textit{In vitro}, we deploy open-source platforms, a smart incubator for temporally controlled cue–stress pairing, a microscope-mounted chemostat for habituation and threshold adaptation, and propose a molecular barcoding pipeline to quantify predictive responses, memory, valence re-assignment, aggregation-enabled pooling, and entropy trajectories in \textit{Capsaspora} in experiments designed based on the insights invoked by our model.
+
+Together, this framework could be used to test when intra-lifetime inference outperforms mutation-only adaptation, delineates the boundary where plasticity collapses as cues degrade, and identifies conditions under which plastic exploration is genetically assimilated. By integrating lineage-resolved measurements with explicit null models, we aim to close the gap between rapid real-world adaptation and classical population-genetic expectations, and to clarify how cellular plasticity and facultative aggregation can scaffold the earliest steps toward multicellularity and form the basis of highly complex behaviour.
+
+\section{Results}
+
+This study investigates the evolutionary trade-off between fixed and plastic strategies through an agent-based model. We compare a genetically determined \textbf{Blind Agent (BA)} with a learning-capable \textbf{Markovian Bayesian Agent (MBA)} within a simulated five-stage environment where anticipatory action is required to achieve maximum fitness. In simulations within a stable, predictable environment, the MBA consistently achieves a higher fitness than the BA. The MBA's ability to learn the optimal strategy and genetically assimilate it leads to a significant \textbf{31.8\% fitness advantage} over the BA, whose population fails to converge on a single optimal solution. To test the limits of this advantage, we introduced environmental stochasticity. The results reveal a clear threshold: the MBA maintains its advantage only in relatively predictable environments (\(\varepsilon \leq 0.15\)). Beyond a stochasticity of approximately 20\% (\(\varepsilon \approx 0.2\)), the cost of maintaining plasticity outweighs its benefits, making the simpler BA strategy more effective. We then assessed resilience by subjecting the populations to an abrupt, permanent environmental shift. The MBA population initially suffered a severe fitness collapse (a "cost of forgetting") but rapidly recovered and adapted, eventually achieving a fitness level higher than its pre-shift performance. In contrast, the BA population remained static, unable to adapt to the new conditions. To determine the ultimate evolutionary outcome, the two agent types were placed in direct competition. Over the long term, the MBA population consistently outcompeted the BA population, ultimately driving it to complete extinction and confirming its superior adaptive strategy. Finally, we quantified the specific factors driving the MBA's success. An analysis of 120 environmental permutations showed the MBA's advantage is robust and not dependent on a single environmental structure. A subsequent large-scale parameter sweep, analyzed with gradient boosting (CatBoost) and SHAP, definitively identified environmental stochasticity as the dominant factor determining the success of a learning strategy. Internal parameters such as learning rate and cost multiplier were found to be important secondary modulators whose influence depends on the environmental context.
+
+
+
+\subsection{The Simulated Environment}
+Agents inhabit a world defined by a deterministic, five-stage daily cycle through Hidden Environmental States (HES), \(s \in \{0, 1, 2, 3, 4\}\). Each state is associated with a unique fitness landscape for three possible phenotypes, \(p \in \{P_1, P_2, P_3\}\), and a noisy temperature cue, \(T\). The fitness landscape is designed to be non-trivial, requiring anticipatory action for maximal fitness. Specifically, a conditional fitness bonus is awarded in the "dusk" (HES 3) and "dawn" (HES 4) states only if a preparatory phenotype (\(P_3\)) was expressed in the preceding "afternoon" state (HES 2), as illustrated in Figure \ref{fig:environment}.
+
+\begin{figure}
+    \centering
+    \includegraphics[width=0.5\textwidth]{Fig_pub/Figure1_EnvironmentAndFitness.png}
+    \caption{\textbf{The Simulated Environment and Fitness Landscape.} The simulation progresses through a deterministic 5-stage daily cycle. Each Hidden Environmental State (HES) has a unique fitness payoff for each of the three phenotypes (P1, P2, P3). A key feature is the conditional fitness bonus (green arrow): to achieve maximum fitness in the "dusk" (HES 3) and "dawn" (HES 4) states, an agent must have expressed a preparatory phenotype (P3) in the "afternoon" state (HES 2), using the temperature change as a predictive cue.}
+    \label{fig:environment}
+\end{figure}
+
+\subsection{Agent Architectures}
+\subsubsection{The Blind Agent (BA)}
+The BA is a null model whose behavior is dictated by its 452-bit genome. The genome decodes into a fixed 5-stage phenotype sequence where each vector maps to the closest P, a baseline transition probability \(p_{\text{base}}\), and a temperature sensitivity factor \(C\). The effective transition probability is given by:
+\begin{equation}
+P_{\text{eff}} = p_{\text{base}} \times (1 + C \times \text{norm}(\Delta T))
+\end{equation}
+where \(\text{norm}(\Delta T)\) is the normalized change in temperature. 
+The BA cannot learn; adaptation occurs only through mutation and selection across generations.
+
+\subsubsection{The Markovian Bayesian Agent (MBA)}
+The MBA models a simple active inference agent with a dual-layer architecture:
+\begin{itemize}
+    \item \textbf{Genome (Prior):} An innate, evolved strategy identical in structure to the BA's.
+    \item \textbf{Learning Layer (Posterior):} A mutable copy of the strategy that is updated through experience and drives behavior.
+    \item \textbf{Cost of Plasticity:} A metabolic cost is incurred for divergence between the genomic prior and the learned posterior, calculated as:
+    \begin{equation}
+        \text{Cost} = \lambda_H \cdot d_H(\mathbf{p}_g, \mathbf{p}_l) + \lambda_{KL} \cdot D_{KL}(P(p_{\text{base},g}) || P(p_{\text{base},l}))
+    \end{equation}
+    where \(d_H\) is the Hamming distance between genomic and learned phenotype sequences and \(D_{KL}\) is the Kullback-Leibler divergence between the transition probabilities.
+    \item \textbf{Regret-Based Learning:} Poor performance relative to the optimum triggers a "regret" signal, causing a probabilistic update to the learned strategy.
+    \item \textbf{Genetic Assimilation:} A consistently successful learned strategy can be written back to the genome, becoming innate for offspring and reducing the agent's own plasticity cost.
+\end{itemize}
+
+\subsection{Evolutionary Dynamics}
+Populations evolve under a Moran process with a constant size of \(N=100\). An agent's total daily fitness is the average across the five states, with any plasticity costs for MBAs subtracted. Selection acts on this final fitness, with agents chosen to reproduce proportional to their success.
+
+\subsection{Simulation Results}
+
+
+
+\subsection{MBA Outperforms BA in Predictable Environments}
+In separate simulations within a stable, deterministic environment, MBA populations consistently achieved higher fitness than BA populations (Figure \ref{fig:independent_runs}A). Over 500 days, the mean fitness of MBA populations stabilized at \(0.692 \pm 0.037\), a significant **31.8\% advantage** over BA populations, which reached a fitness of only \(0.525 \pm 0.010\) (\(p < 3 \times 10^{-11}\)). This advantage arises from the MBA's ability to learn the optimal phenotype sequence that anticipates environmental transitions. The population entropy of MBAs rapidly decreases as they converge on this optimal strategy, while BA entropy remains high, reflecting a diverse but less fit population (Figure \ref{fig:independent_runs}B). The metabolic cost of plasticity for MBAs remained low, averaging just 0.014, indicating that the benefits of learning far outweighed the costs (Figure \ref{fig:independent_runs}C). Muller plots of dominant genotypes confirm that MBA populations rapidly fix an optimal strategy, whereas BA populations maintain a diverse pool of suboptimal genotypes (Figure \ref{fig:independent_runs}D).
+
+\begin{figure*}[t]
+    \centering
+    \includegraphics[width=\textwidth]{Fig_pub/Figure2_IndependentRuns.png}
+    \caption{\textbf{Independent Population Dynamics.} Comparison of BA-only and MBA-only populations over 500 days (mean \(\pm\) SEM over 10 replicates). \textbf{A)} MBA agents achieve significantly higher mean fitness. \textbf{B)} MBA population entropy drops as agents converge on an optimal strategy, while BA entropy remains high. \textbf{C)} The metabolic cost of plasticity for MBAs is minimal. \textbf{D)} Muller plots show the rapid fixation of a dominant, optimal genotype in MBA populations (bottom), while BA populations (top) fail to converge.}
+    \label{fig:independent_runs}
+\end{figure*}
+
+\subsection{Environmental Predictability Defines the Value of Plasticity}
+To determine the limits of the MBA's advantage, we performed a stress test by introducing environmental stochasticity (\(\varepsilon\)). Here, \(\varepsilon\) represents the probability that both the true environmental state and its perceived cue are independently randomized at each daily stage, breaking any learnable correlation. The results reveal a clear threshold where plasticity becomes disadvantageous (Figure \ref{fig:stress_lockin}A). MBAs maintain their fitness advantage for \(\varepsilon \le 0.15\). However, as stochasticity increases beyond \(\varepsilon \approx 0.20\), the environment becomes too unpredictable to learn, and the metabolic cost of maintaining plasticity machinery renders the MBA less fit than the simpler, non-learning BA. At maximum stochasticity (\(\varepsilon = 1.0\)), the BA's strategy of adopting a fixed, generalist phenotype is superior.
+
+\begin{figure*}[t]
+    \centering
+    \includegraphics[width=\textwidth]{Fig_pub/Figure3_StressAndLockIn_FIXED.png}
+    \caption{\textbf{Environmental Stress and Genetic Lock-in.} \textbf{A)} Fitness as a function of environmental stochasticity (\(\varepsilon\)). The MBA advantage erodes as the environment becomes unpredictable, with a crossover point at \(\varepsilon \approx 0.2\). \textbf{B)} Response to a sudden environmental shift after 300 days. MBA fitness initially collapses (the "cost of forgetting") but rapidly recovers to a level exceeding its pre-shift performance. BA fitness remains largely static. \textbf{C, D)} Muller plots for the MBA population during the stress test and lock-in experiment, respectively, showing the dynamics of genotype evolution.}
+    \label{fig:stress_lockin}
+\end{figure*}
+
+\subsection{Plasticity Confers Resilience to Abrupt Environmental Shifts}
+We next tested how populations respond to a sudden, permanent environmental change after a long period of stability (the "genetic lock-in" experiment). After 300 days of adaptation to a canonical environmental cycle, the sequence of daily states was permanently permuted. The MBA population experienced a severe, immediate fitness collapse, dropping by 39\% on the first day post-shift (from 0.699 to 0.426), illustrating the "cost of forgetting" where a previously optimal, learned strategy becomes maladaptive (Figure \ref{fig:stress_lockin}B). However, this deficit was transient. The MBAs' plasticity allowed for rapid recovery, with fitness rebounding to 0.495 by day two and eventually stabilizing at 0.707, a level exceeding their pre-shift performance. In contrast, the BA population showed minimal response, with fitness remaining static around 0.515. This experiment highlights the dual nature of plasticity: while it carries the risk of a temporary maladaptation when the environment changes, it provides the essential mechanism for rapid recovery and superior long-term adaptation.
+
+\subsection{MBA's Adaptive Advantage Drives BA to Extinction in Direct Competition}
+To assess the ultimate evolutionary outcome, we simulated a large, mixed population of 500 BA and 500 MBA agents in direct competition for 100,000 days in a deterministic environment. The results are unequivocal (Figure \ref{fig:competition}). Despite starting at equal numbers, the MBA population steadily outcompetes the BA population, driving it to complete extinction by approximately day 60,000. The MBA's higher average fitness allows it to secure a greater share of reproductive opportunities in the Moran process. This long-term result confirms that the fitness advantages observed in isolated populations and short-term experiments translate into a decisive, long-term evolutionary victory for the plastic, learning-based strategy.
+
+\begin{figure*}[t]
+    \centering
+    \includegraphics[width=\textwidth]{tangent/Long_Competition_Analysis_With_Snapshots.png}
+    \caption{\textbf{Long-Term Direct Competition.} In a mixed population starting with 500 BA and 500 MBA agents, the MBA population (orange) consistently outcompetes the BA population (blue), leading to the latter's extinction. \textbf{A)} Population counts over time. \textbf{B)} The mean fitness of the MBA population remains consistently higher than the BA population. \textbf{C)} Population entropy for both agent types decreases as the MBA population expands and fixes its strategy. \textbf{D)} Muller plots show the dominance and eventual fixation of the MBA genotype.}
+    \label{fig:competition}
+\end{figure*}
+
+\subsection{Quantifying Drivers of Adaptive Advantage}
+
+Before dissecting parameter effects, we asked whether the MBA's advantage might depend on the specific order of hidden environmental states (HES). In other words, is plasticity tied to the canonical daily cycle, or does it generalize across arbitrary topologies? To this end, we exhaustively simulated 120 permutations of the five-state daily cycle (600 days, 100 agents), generating an ad hoc reward rule for each sequence. In all cases, the learning agent achieved a positive fitness advantage over the blind agent. No significant dependence on Hamming distance from the canonical sequence was detected (Kruskal–Wallis test, \(H=6.14\), \(p=0.19\)), indicating that global sequence topology does not, by itself, abolish the advantage of learning. However, the magnitude of the advantage varied across permutations, suggesting that specific structural features of the sequence can modulate performance (see Supplementary Information).  
+
+Having established that the learning strategy is robust to sequence order, we next quantified the relative importance of environmental and internal parameters using a large-scale parameter sweep (5,000 independent runs, 600 days each). A CatBoost gradient boosting regression model was trained to predict the learning agent's fitness advantage (\(\Delta\), delta\_final\_mean). The model achieved high predictive accuracy (RMSE = 0.0277), allowing robust analysis of main effects and pairwise interactions.  
+
+Figure~\ref{fig:Figure_A_B_C}A shows the overall performance landscape across environmental stochasticity (\(\varepsilon\)) and internal regimes. A clear threshold is evident: the learning agent retains an advantage only at low stochasticity (\(\varepsilon < 0.2\)); above this, fixed strategies outperform, as indicated by points falling below the red dashed line (\(\Delta = 0\)). Within the low-stochasticity regime, the highest fitness advantages are associated with low learning rates (small marker size) and low cost multipliers (darker colors).  
+
+To formally rank parameter contributions, we used SHAP (SHapley Additive exPlanations), a model-agnostic method that assigns additive importance values to features. As shown in Figure~\ref{fig:Figure_A_B_C}B, environmental stochasticity dominates all other predictors. Among the internal attributes, cost multiplier and learning rate are most influential, while environmental permutation (the structure of the hidden environmental sequence) also contributes substantially. Penalty exerts a smaller but consistent effect.  
+
+Finally, we quantified pairwise interactions using CatBoost's interaction strength metric. The resulting heatmap (Figure~\ref{fig:Figure_A_B_C}C) shows that interactions are non-negligible. The strongest interaction is between stochasticity and learning rate, confirming that the effect of internal parameters depends on the environmental regime. The next strongest is between stochasticity and permutation, indicating that the tolerance of learning agents to noise depends on the structural predictability of the environment. Together, these analyses establish a hierarchy: environmental factors are the dominant drivers of adaptive advantage, internal parameters modulate outcomes, and their interactions determine the boundary conditions where learning is favored.
+
+\begin{figure*}[t]
+    \centering
+    \includegraphics[width=\textwidth]{Fig_pub/Figure_A_B_C.png}
+    \caption{\textbf{Drivers of Adaptive Advantage.} 
+    \textbf{A)} Performance landscape of the learning agent across environmental stochasticity (\(\varepsilon\)), cost multiplier (color), and learning rate (marker size). The red dashed line marks \(\Delta = 0\), the point where fixed strategies outperform. 
+    \textbf{B)} Mean absolute SHAP (SHapley Additive exPlanations) values ranking the contribution of each parameter to the model's predictions. 
+    \textbf{C)} Heatmap of pairwise interaction strengths, showing dependencies between environmental and internal parameters.}
+    \label{fig:Figure_A_B_C}
+\end{figure*}
+
+\subsection{Experimental Platforms}
+
+To empirically test the hypothesis that single-celled organisms such as \textit{Capsaspora owczarzaki} can function as Markovian–Bayesian learners, capable of intra-lifetime phenotypic adjustments that outpace genetic adaptation, we developed a suite of open-source experimental platforms. These systems enable precise manipulation of environmental cues and stressors while monitoring phenotypic responses at both individual and population levels. Each platform targets specific agent capacities outlined in our conceptual framework: prediction (anticipatory responses to cues), memory (retention of cue–outcome associations), valence assignment/re-assignment (shifting the perceived value of stimuli from neutral to aversive/appetitive or vice versa), habituation (desensitization to repeated non-predictive cues), and broadcast \& aggregation (information sharing via collective behaviors). Key readouts include prediction error (discrepancy between expected and observed outcomes, inferred from response kinetics), memory persistence (measured via re-sensitization assays), response-decay rates, aggregation dynamics, and Shannon-entropy trajectories of phenotypic states (tracked via barcoded lineages to quantify exploration and assimilation).
+
+All platforms are designed for \textit{C.\ owczarzaki}, leveraging its compact genome, rapid growth, genetic tractability, and facultative aggregation, but they can readily accommodate similar organisms. Hardware and software are open-source (\href{https://example.com}{GitHub repository}), built on affordable microcontrollers (e.g., ESP32) with modular components for customization. The systems integrate with microfluidic or bioreactor setups for high-throughput phenotyping under controlled cue sequences, and data logging follows standardized JSON schemas for interoperability with in~silico models.
+
+\begin{table*}[t]
+\centering
+\caption{Experimental platforms, learning features probed, and key readouts.}
+\renewcommand{\arraystretch}{1.3} % spacing between rows
+\begin{ruledtabular}
+\begin{tabular}{l p{0.32\textwidth} p{0.32\textwidth}}
+\textbf{Platform} & \textbf{Learning feature(s) probed} & \textbf{Key readouts} \\
+\hline
+Smart incubator &
+Prediction; memory; valence shift &
+Prediction error; memory persistence (complex cue control) \\
+Microscope-mounted chemostat &
+Habituation; dynamic valence; dynamic threshold adjustments &
+Response-decay rate; re-sensitization kinetics \\
+Molecular barcoding system &
+Internal exploration of phenotype space; plastic\textendash genetic assimilation &
+Outer \& inner Shannon entropy trajectories; lineage\textendash phenotype maps; exploration/assimilation rate \\
+\end{tabular}
+\end{ruledtabular}
+\end{table*}
+
+\subsubsection{Smart incubator: testing cue-based learning, valence assignment, prediction, and memory.} 
+The smart incubator serves as a key platform for generating complex environmental landscapes to test cue-based learning in single cells, analogous to classical conditioning, where neutral cues (conditional stimuli, CS) become predictors of aversive or appetitive outcomes (unconditional stimuli, US). As demonstrated in Fig.~\ref{Fig_Smart_incubator}, the system enables precise temporal-control experiments to probe whether \textit{C.\ owczarzaki} can update internal models to minimize prediction error, retain associations over multiple cycles (memory), and re-assign valence (e.g., shifting a cue from neutral to aversive based on paired outcomes).
+
+\begin{figure*}[t]
+    \centering
+    \includegraphics[height=0.7\textheight, keepaspectratio]{Fig_pub/Fig_Smart_incubator.png}
+     \caption{\textbf{Smart incubator performance analysis.}
+      (A) Cycle length distribution shows consistent experimental durations across both protocol types (Non-Temporal: \(296.8 \pm 58.3\) min, \(n=20\); Temporal: \(287.8 \pm 56.3\) min, \(n=20\)).
+      (B) Time from cycle start to US activation demonstrates strategic timing differences, with Non-Temporal protocols showing variable activation (\(165.6 \pm 83.8\) min) while Temporal protocols exhibit later, more controlled timing (\(230.7 \pm 56.8\) min).
+      (C) Time delta between US and heat shock reveals the key distinction: Non-Temporal protocols show wide variability in stimulus–stress relationships (\(-58.1 \pm 113.9\) min, 20 unique values), while Temporal protocols achieve exceptional precision with tight clustering around +30 minutes (\(30.0 \pm 0.3\) min, 19 unique values; vertical dashed line).
+      (D) Stable temperature distribution demonstrates robust thermal control across both protocols, with basal temperature accuracy of \(+0.45^\circ\mathrm{C}\) (Non-Temporal) and \(+0.65^\circ\mathrm{C}\) (Temporal) at the \SI{23}{\celsius} setpoint, and heat-shock accuracy of \(-0.52^\circ\mathrm{C}\) and \(-2.52^\circ\mathrm{C}\), respectively, at the \SI{32}{\celsius} setpoint.
+      (E) PCB control board featuring ESP32 microcontroller, thermal sensors, and solid-state relays for automated cue–stress delivery.
+      (F) Custom 3D-printed enclosure housing the incubator hardware.
+      All data represent 20 experimental cycles per condition with 10-second logging intervals.}
+      \label{Fig_Smart_incubator}
+\end{figure*}
+\noindent\textbf{Dynamic cue-controlled stress protocols.} 
+The system cycles cultures between basal (\SI{23}{\celsius}) and stress (\SI{32}{\celsius}) conditions under two regimes: \emph{Non-Temporal}, where cues occur at variable times before heat shock (\(-58.1 \pm 113.9\) min), and \emph{Temporal}, where cues reliably precede stress with high precision (\(+30.0 \pm 0.3\) min). An ESP32 microcontroller with PID feedback ensures sub-degree stability (\(+0.45^{\circ}\mathrm{C}\) at basal; \(-0.52^{\circ}\mathrm{C}\) at stress), with all events logged every 10 seconds. These programmable parameters enable real-time phenotype–environment mapping and scalable tests of learning, memory, and inference in \textit{Capsaspora}.
+
+\subsubsection{Microscope-mounted chemostat: habituation, valence reassignment, and threshold adaptation.} 
+The microscope-mounted chemostat complements the smart incubator by placing dynamic control directly at the imaging plane (Fig.~\ref{Fig_Chemostat}). A fixed four-pump layout (basal inflow, signal injection, chamber feed, active overflow) delivers precisely timed chemical pulses and rapid thermal perturbations while preserving constant volume and focus for longitudinal microscopy. This setup enables three core demonstrations: (i) under-lens cue pulses with reproducible transients aligned to imaging; (ii) rapid, synchronized chemical–thermal inputs for compound perturbations; and (iii) closed-loop, state-triggered dosing based on live segmentation. Together, these features allow direct tests of learning-related behaviors under the objective: habituation (attenuation and re-sensitization to repeated non-predictive cues), valence reassignment (context-dependent cue value under controlled dilution), and threshold adaptation (shifts in response onset with changing resource background). The platform thereby establishes dynamic chemical and thermal control in situ during continuous flow, enabling learning assays without disrupting steady-state culture or optical alignment.
+
+
+\begin{figure*}[t]
+  \centering
+  \includegraphics[width=\textwidth]{Fig_pub/Fig_Chemostat.png}
+  \caption{\textbf{Microscope-mounted chemostat.}
+  (A) Schematic of continuous-flow control system showing media inflow, signal injection, chamber feed, and active overflow regulated by four pumps. An ESP32 controller coordinates flow and temperature modulation, enabling precisely timed cue pulses and thermal perturbations at the imaging plane.
+  (B) Hardware implementation of the system, including the PCB control board, four-pump module, and media reservoirs. The setup preserves constant volume and focus during dosing, supporting longitudinal microscopy under dynamic cue delivery.}
+  \label{Fig_Chemostat}
+\end{figure*}
+
+\subsubsection{CRISPRi and barcoding systems: lineage tracking and inducible functional perturbations.}
+To extend our framework beyond environmental control, we propose two complementary genomic tools for probing plasticity and learning in \textit{C.\ owczarzaki}. The first is a lineage-resolved barcode library designed to track population sweeps and phenotype alterations across time, providing direct readouts of both outer and inner entropy. The second is an inducible CRISPRi silencing library, in which shortened Target Recognition Sequences (TRSs) act as functional barcodes. In this scheme, each cell carries a unique TRS that transiently silences one gene on average, such that cognition-related assays (e.g., prediction, spatial inference, aggregation) selectively eliminate cells missing crucial functions. By analogy to Abraham Wald's survivorship bias analysis, the absence of specific TRSs among survivors highlights essential regulators of cognitive traits. Together, these complementary systems offer both neutral lineage tracing, as we demonstrated in yeast \citep{rezenman_gumi-bear_2023}, and functional perturbation handles, enabling systematic dissection of the genomic underpinnings of phenotypic plasticity and learning.
+
+\begin{figure*}[t]
+\centering
+\includegraphics[width=0.85\textwidth]{Fig_pub/Fig_CRISPRi.jpg}
+\caption{\textbf{CRISPRi barcoding strategy for probing cognitive functions in \textit{C.\ owczarzaki}.}
+Cells are transfected with a CRISPRi plasmid containing a shortened 12-bp Target Recognition Sequence (TRS), designed to silence one gene per cell on average (different colors represent distinct TRSs). The library undergoes cognition assays (prediction, spatial inference) and information transfer via aggregation, selectively eliminating cells depending on which gene is silenced (depicted as empty color cells). By analogy to Abraham Wald's survivorship bias analysis \citep{mangel_abraham_1984} of aircraft damage, the absence of particular TRSs among survivors indicates genes essential for the tested functions. This system thereby acts as both a perturbation and barcode handle, linking functional requirements to survivorship patterns.}
+\label{Fig_CRISPRi}
+\end{figure*}
+
+\section{Discussion}
+
+Our results surface three recurring limits of diffusion-style, mutation-first accounts when environments are cue-rich and rapidly changing. First, a fixed genotype–phenotype map cannot capture latent internal states that let one lineage express multiple phenotypes without new mutations. Second, diffusion approximations calibrated to stationary or slowly varying regimes underrepresent high-frequency shocks unless explicitly modeled, while field surveys indicate that such shocks often dominate selection. Third, treating the environment as a purely external force ignores that the organism is an active participant. A genome does not just encode a static list of traits; it builds a dynamic control system \citep{noble_its_2024} that must operate within strict physical boundaries. By neglecting this, classical models cannot account for the biophysical constraints (e.g., the speed of transcription, the energy cost of plasticity) and information-processing limits that ultimately determine how and when an organism can adapt. These omissions may be inconsequential in simplified lab settings, where learnable cues are scarce and organisms behave effectively as Blind Agents (BAs), but we claim they become critical in natural, cue-rich ecologies.
+
+Our agent-based simulations clarify when Markovian–Bayesian Agents (MBAs), plastic, model-updating organisms, gain or lose an advantage. In highly stochastic regimes (environmental noise $\varepsilon$ above a critical threshold; Fig.~\ref{fig:stress_lockin}), the predictive benefit collapses: metabolic and error costs dominate, and lower-cost BAs are more robust. In contrast, large deterministic shifts (e.g., a permanent change in cycle structure; Fig.~\ref{fig:stress_lockin}) ultimately select for MBAs. Although MBAs initially lose fitness, they re-learn and recover within tens of generations, whereas BAs require hundreds of generations for rare favorable mutations to arise and fix. This aligns with ecological patterns: short, unpredictable disturbances (storms, pulses) favor BA-like strategies (dormancy, spores), while sustained, directional pressures (chronic antibiotics, gradual climate shifts) favor plastic strains that can anticipate and precondition.
+
+Beyond short-term adaptation, long-run competition reveals a buffering role for plasticity we term the \emph{chaperone effect} (Fig.~\ref{fig:competition}). MBA populations maintain an acquired "posterior" layer that cushions the genomic "prior" from deleterious mutations: individuals can express high-fitness phenotypes despite imperfect genotypes, preserving adaptive memory at the population level. Operationally, this appears as sustained anticipatory heterogeneity; plasticity costs prevent a single genotype from sweeping, stabilizing population entropy at high values, whereas BA populations converge to a narrow genotypic/phenotypic state before collapsing by drift. Conceptually, this connects to classic ideas of plasticity-first evolution and genetic capacitors (e.g., Baldwin, Waddington, Hsp90), but here emerges from explicit online inference with quantified entropy trajectories. Intriguingly, this buffering role of plasticity mirrors what is now emerging in cancer evolution, where nonheritable phenotypic plasticity precedes and scaffolds genetic stabilization. Recent single-cell studies argue that cancer progression, metastasis, and drug resistance often follow a phenotypes-first blueprint, in which stress-induced plastic states provide the raw material for later genetic fixation\citep{frank_origin_2024}.
+
+This logic also suggests an evolutionary route toward simple multicellularity during Proterozoic instability: physical compartmentalization can shelter interior tissues from an otherwise high-entropy exterior, converting an unpredictable environment into a locally predictable micro-niche in which costly, MBA-like inference becomes evolutionarily stable. Importantly, plasticity may not be as metabolically extravagant as traditionally assumed. Work on cognitive energetics shows that active cognition in neural systems increases energy use by only $\sim$5\% over baseline homeostasis, yet yields disproportionately large adaptive returns. If cellular cognition scales similarly, then the return-on-information (ROI) may be immense: modest energetic investments in inference can yield orders-of-magnitude gains in survival and adaptability\citep{jamadar_metabolic_2025}.
+
+Our results further highlight that environmental perturbations are the dominant triggers for learning. Crucially, their impact is not absolute but species-relative: filtered through doubling time, sensory repertoire, and life cycle. What manifests as high-frequency noise for one organism may constitute stable structure for another. Our experimental platforms are designed precisely to capture this relativity. The Smart Incubator and Microscope-Mounted Chemostat generate structured environments with tunable rates of change, cue reliabilities, and stress couplings, creating tailored "worlds" to test how different organisms perceive and act within them. In this sense, the platforms serve not merely as tools but as controlled ecologies for recapitulating the axes of our framework, hidden environmental states (HES), environmental noise ($\varepsilon$), and temporal coupling, in a testable, reproducible way, while our proposed genomic barcoding method provides true insights into the underlying dynamics. 
+
+Finally, while many aspects of our framework are anchored in established biology, learning rates corresponding to stress-induced phenotypic changes, costs to metabolic and phenotypic overhead, and updating priors using genetic assimilation and the Baldwin effect, our work also isolates a deeper organizing principle: the equivalent of a \emph{loss function} at the cellular level. We argue that in order to sustain an internal, updateable world model, a cell must encode not only prediction error but also the subjective weight of "how bad" different mismatches feel. This capacity for cellular "regret" is the missing substrate for closed-loop inference, bridging open-loop reaction with adaptive world modeling. While this may seem abstract, plausible molecular substrates for such durable state-weighting are emerging. For instance, self-perpetuating prion-like protein assemblies can create long-term cellular memories of transient stresses, effectively acting as a physical instantiation of a loss function by encoding the persistent 'cost' of a past prediction error \citep{jakobson_metabolites_2021}. Our framework thus not only connects plasticity, entropy, and assimilation into a unified conceptual model but also identifies cellular regret as the critical principle to be empirically pursued.
+
+Beyond evolutionary inference, this perspective opens a new horizon for synthetic biology. Current engineering approaches often rely on supervised-learning analogues, designing specific genetic circuits to execute known tasks under fixed rules. If organisms can instead operate as MBAs, capable of unsupervised learning by tying internal regulatory adjustments to real-time fitness outcomes, then a new design paradigm becomes possible. Instead of scripting solutions, one could scaffold internal loss functions and let cells discover functional strategies through inference and selection. This would enable the engineering of cells that not only execute logic, but actively explore, anticipate, and generalize, an adaptive architecture closer to evolutionarily refined cognition than mechanistic control.
+
+
+\section{Materials and Methods}
+
+\subsection{Simulation Environment}
+
+The simulation models a population of agents evolving in a cyclical environment with five discrete Hidden Environmental States (HES 0--4). Each day consists of a deterministic progression through all five states in sequence: $\text{HES } 0 \rightarrow \text{HES } 1 \rightarrow \text{HES } 2 \rightarrow \text{HES } 3 \rightarrow \text{HES } 4$, then cycling back to HES 0 on the following day. Each environmental state is characterized by three parameters: normalized temperature (T), carbon concentration (C), and nitrogen concentration (N), as shown in Table~\ref{tab:environmental_states}.
+
+\begin{table}[H]
+\centering
+\caption{\textbf{Environmental State Parameters}}
+\label{tab:environmental_states}
+\begin{tabular}{@{}cccccc@{}}
+\toprule
+HES & Stage & Temperature (T) & Carbon (C) & Nitrogen (N) & C/N Ratio \\
+\midrule
+0 & Dawn & -0.34 & 0.1 & 1.0 & 0.1 \\
+1 & Morning & 1.38 & 1.0 & 0.1 & 10.0 \\
+2 & Midday & -0.34 & 0.8 & 0.2 & 4.0 \\
+3 & Afternoon & 0.80 & 0.8 & 0.2 & 4.0 \\
+4 & Dusk & -1.49 & 0.1 & 1.0 & 0.1 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+At each environmental state transition, agents receive noisy observations of the true environmental parameters, with Gaussian noise ($\sigma = 0.2$) added to each dimension. To test robustness, we implemented an environmental stochasticity parameter ($\varepsilon$) that introduces a probability of random state transitions instead of the deterministic sequence.
+
+\subsection{Agent Architecture}
+
+Both agent types share an identical 452-bit boolean genome structure that encodes three key components:
+
+\subsubsection{Genome Structure}
+
+\begin{enumerate}
+\item \textbf{Phenotype Sequence (320 bits):} Five 64-bit vectors, each encoding one of three possible phenotypes (P1, P2, or P3) using a nearest-centroid decoding scheme with pre-defined centroids:
+    \begin{itemize}
+    \item \textbf{P1 centroid:} All zeros (64 bits of 0)
+    \item \textbf{P2 centroid:} Half ones, half zeros (32 bits of 1, 32 bits of 0)
+    \item \textbf{P3 centroid:} All ones (64 bits of 1)
+    \item \textbf{Decoding:} Each 64-bit vector is assigned to the closest centroid via Hamming distance
+    \end{itemize}
+\item \textbf{Baseline Transition Probability (100 bits):} Encodes a probability $p_{\text{base}} \in [0,1]$ calculated as the proportion of `1' bits
+\item \textbf{Temperature Sensitivity (32 bits):} Encodes a sensitivity factor $C \in [-1,1]$ normalized around the midpoint: $C = \frac{\text{num\_ones} - 16}{16}$
+\end{enumerate}
+
+\subsubsection{Phenotype Transition Mechanics}
+
+Agent phenotype transitions are governed by a temperature-sensitive probabilistic mechanism. The effective transition probability at each environmental state is calculated as:
+
+\begin{equation}
+P_{\text{effective}} = p_{\text{base}} \times (1 + C \times \text{norm}(\Delta T_{\text{obs}}))
+\end{equation}
+
+where $\Delta T_{\text{obs}}$ is the observed temperature change between consecutive states, and $\text{norm}()$ normalizes the temperature change to $[0,1]$. This mechanism allows agents to use temperature cues to time their phenotype transitions appropriately within the daily cycle.
+
+\subsection{Fitness Landscape}
+
+The fitness landscape implements a complex multi-peak structure with conditional bonuses designed to create valley-crossing challenges. The base fitness matrix assigns different fitness values to each phenotype in each environmental state:
+
+\begin{table}[H]
+\centering
+\caption{\textbf{Base Fitness Matrix}}
+\label{tab:base_fitness}
+\begin{tabular}{@{}cccc@{}}
+\toprule
+HES & P1 & P2 & P3 \\
+\midrule
+0 & 1.0 & 0.1 & 0.6 \\
+1 & 0.3 & 0.8 & 0.6 \\
+2 & 0.3 & 0.8 & 0.6 \\
+3 & 0.3 & 0.8 & 1.2 \\
+4 & 1.0 & 0.1 & 0.6 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsubsection{Conditional Fitness Mechanism}
+
+A critical feature of the fitness landscape is the preparatory phenotype mechanism. When an agent expresses phenotype P3 in HES 3, it activates a 2-step "preparation countdown" that enables maximum fitness (1.0) for phenotype P1 in subsequent nitrogen-rich states (HES 4 and HES 0). Without this preparation, P1 expression in nitrogen-rich states yields only 30\% of its potential fitness (0.3), creating a temporal dependency that requires predictive adaptation.
+
+\subsection{Mathematical Model of Fitness Dynamics}
+
+\subsubsection{Formal Model for Fitness Gain}
+
+We can formalize the fitness dynamics for both agent types as follows:
+
+\paragraph{Blind Agent (BA) Fitness Model}
+
+For a BA agent $i$ at time $t$, the fitness is determined solely by its genetically-encoded phenotype sequence:
+
+\begin{equation}
+V_{\text{BA},i}(t) = \frac{1}{5} \sum_{h=0}^{4} F(G_i(t)[\phi_i(h)], h) - P_{\text{conditional}}(G_i(t), h)
+\end{equation}
+
+where:
+\begin{itemize}
+\item $G_i(t)$ is the genetically-determined phenotype sequence at generation $t$
+\item $\phi_i(h)$ is the phenotype index used in environmental state $h$
+\item $F(p,h)$ is the base fitness lookup function for phenotype $p$ in state $h$
+\item $P_{\text{conditional}}$ accounts for the preparatory phenotype penalty (0.7 reduction if P1 used without P3 preparation)
+\end{itemize}
+
+The evolutionary dynamics follow:
+\begin{equation}
+G_i(t+1) = G_i(t) \oplus M(\mu)
+\end{equation}
+
+where $M(\mu)$ represents bit-flip mutations with probability $\mu = 10^{-4}$.
+
+\paragraph{Memory Bayesian Agent (MBA) Fitness Model}
+
+For an MBA agent $i$ at time $t$, fitness incorporates both learned strategy and plasticity cost:
+
+\begin{equation}
+V_{\text{MBA},i}(t) = \frac{1}{5} \sum_{h=0}^{4} [F(L_i(t)[\phi_i(h)], h) - C_{\text{plasticity}}(L_i(t), G_i(t))] - P_{\text{conditional}}(L_i(t), h)
+\end{equation}
+
+where:
+\begin{itemize}
+\item $L_i(t)$ is the learned phenotype sequence (posterior)
+\item $G_i(t)$ is the genomic phenotype sequence (prior)
+\item $C_{\text{plasticity}}$ is the continuous metabolic cost of plasticity
+\end{itemize}
+
+The plasticity cost function is defined as:
+\begin{equation}
+C_{\text{plasticity}}(L_i, G_i) = \lambda_H \sum_{j=1}^{5} I(L_i[j] \neq G_i[j]) + \lambda_{KL} D_{KL}(p_{\text{learned}} \| p_{\text{genomic}})
+\end{equation}
+
+where $I()$ is the indicator function, $\lambda_H = 0.01$, and $\lambda_{KL} = 0.02$.
+
+\paragraph{Learning Dynamics}
+
+The MBA's learned strategy evolves within lifetime according to:
+
+\begin{equation}
+L_i(t, h+1) = \begin{cases} 
+L_i(t, h) \oplus \text{Random\_phenotype\_switch} & \text{if } R(t,h) > 0.2 \text{ and } U(0,1) < \eta \\ 
+L_i(t, h) & \text{otherwise} 
+\end{cases}
+\end{equation}
+
+where $R(t,h) = F_{\text{optimal}}(h) - F_{\text{realized}}(t,h)$ is the regret function and $\eta = 0.3$ is the learning rate.
+
+\paragraph{Genetic Assimilation Dynamics}
+
+When an MBA achieves sustained success, learned adaptations can be genetically assimilated:
+
+If $\sum_{\tau=t-K+1}^{t} I(V_{\text{MBA},i}(\tau) > \theta) \geq K$, then $G_i(t+1)[j] \leftarrow L_i(t)[j]$
+
+where $K = 3$ consecutive successful generations and $\theta = 0.65$ is the fitness threshold.
+
+\paragraph{Comparative Advantage Model}
+
+The relative advantage of MBA over BA can be expressed as:
+
+\begin{equation}
+\Delta(t) = E[V_{\text{MBA}}(t)] - E[V_{\text{BA}}(t)]
+\end{equation}
+
+This advantage is positive when the learning benefit outweighs the plasticity cost:
+\begin{equation}
+E[F(L(t)) - F(G(t))] > E[C_{\text{plasticity}}(L(t), G(t))]
+\end{equation}
+
+The model predicts MBA advantage in predictable environments where learning can identify optimal strategies faster than mutation alone, but BA advantage in highly stochastic environments where plasticity costs exceed learning benefits.
+
+\subsection{Agent Types}
+
+\subsubsection{Blind Agent (BA)}
+
+The Blind Agent represents a purely genetic strategy with no learning capability. Its behavior is entirely determined by its decoded genome:
+\begin{itemize}
+\item Phenotype sequence: Fixed at birth from genetic encoding
+\item Transition timing: Based solely on genetically encoded temperature sensitivity and baseline probability
+\item No plasticity cost or learning mechanism
+\item Relies entirely on mutation ($\mu = 10^{-4}$ per bit) and selection for adaptation
+\end{itemize}
+
+\subsubsection{Memory Bayesian Agent (MBA)}
+
+The MBA implements a dual-layer architecture enabling within-lifetime learning:
+
+\paragraph{Dual-Layer Strategy}
+\begin{itemize}
+\item \textbf{Genomic Layer (Prior):} The inherited 452-bit genome representing the evolutionary baseline
+\item \textbf{Learning Layer (Posterior):} A mutable copy of the phenotype sequence and transition probability that drives actual behavior
+\end{itemize}
+
+\paragraph{Plasticity Cost}
+
+The MBA pays a continuous metabolic cost for any divergence between its learned strategy and genomic prior:
+
+\begin{equation}
+C_{\text{plasticity}} = \lambda_H \times \text{Hamming}(\mathbf{p}_{\text{learned}}, \mathbf{p}_{\text{geno}}) + \lambda_{KL} \times D_{KL}(p_{\text{learned}} \| p_{\text{geno}})
+\end{equation}
+
+Where:
+\begin{itemize}
+\item \textbf{Hamming component:} $\lambda_H = 0.01$ per differing phenotype position
+\item \textbf{KL divergence component:} $\lambda_{KL} = 0.02$ for Bernoulli transition probabilities with $\varepsilon$-clamping ($\varepsilon = 10^{-6}$) for numerical stability
+\item \textbf{Bernoulli KL formula:} $D_{KL}(p \| q) = p \log(p/q) + (1-p) \log((1-p)/(1-q))$
+\end{itemize}
+
+\paragraph{Learning Mechanism}
+
+The MBA employs a regret-based learning system operating on daily performance windows:
+
+\begin{enumerate}
+\item \textbf{Daily Regret Calculation:}
+    \begin{itemize}
+    \item Optimal fitness computed as maximum possible fitness across all phenotypes and preparation states for each HES
+    \item Daily regret = mean optimal fitness - mean realized fitness across all HES states in the day
+    \end{itemize}
+
+\item \textbf{Learning Trigger:} Learning occurs when both conditions are met:
+    \begin{itemize}
+    \item Daily regret > 0.2 (regret threshold)
+    \item Random draw < $\eta$ (learning rate, default $\eta = 0.3$)
+    \end{itemize}
+
+\item \textbf{Phenotype Update:} When triggered, learning randomly:
+    \begin{itemize}
+    \item Selects one position in the 5-stage phenotype sequence
+    \item Replaces current phenotype at that position with random alternative (P1, P2, or P3)
+    \end{itemize}
+
+\item \textbf{Transition Probability Update:} Gradual adjustment toward optimal target:
+    \begin{itemize}
+    \item $p_{\text{learned}} \leftarrow p_{\text{learned}} + \eta_p \times (0.9 - p_{\text{learned}})$
+    \item Where $\eta_p = 0.05$ is the probability learning rate
+    \end{itemize}
+\end{enumerate}
+
+\paragraph{Genetic Assimilation}
+
+Whole-genome assimilation implements the Baldwin effect through sustained success tracking:
+
+\begin{itemize}
+\item \textbf{Trigger condition:} Agent maintains high fitness (> 0.65) for $K = 3$ consecutive days
+\item \textbf{Assimilation process:} Entire learned strategy (phenotype sequence + transition probability) written back to genome
+\item \textbf{Bit-level encoding:} Learned phenotypes encoded as corresponding centroids, transition probability as shuffled bit vector
+\item \textbf{Cost reduction:} Post-assimilation, learned layer equals genomic layer, eliminating future plasticity costs
+\item \textbf{Heritability:} Assimilated traits transmitted to offspring through normal reproduction
+\end{itemize}
+
+\subsection{Population Dynamics}
+
+Evolution proceeds via a Moran process maintaining constant population size:
+
+\begin{enumerate}
+\item \textbf{Parent Selection:} Agents are selected for reproduction with probability proportional to their daily fitness
+\item \textbf{Victim Selection:} A random agent is chosen for replacement
+\item \textbf{Offspring Production:} The parent produces a clonal offspring subject to mutation
+\item \textbf{Mutation:} Each genome bit flips with probability $\mu = 10^{-4}$ (identical for both BA and MBA agent types)
+\end{enumerate}
+
+\subsection{Experimental Protocols}
+
+All experiments are orchestrated through a standardized wrapper system that ensures reproducible execution, consistent output formats, and systematic data collection. The wrapper architecture separates experiment orchestration from core simulation logic, enabling systematic parameter sweeps and comparative analysis.
+
+\subsubsection{Wrapper Architecture}
+
+The experimental framework consists of five main wrapper types, each targeting specific research questions:
+
+\paragraph{1. Vanilla Wrapper (\texttt{vanilla.py})}
+\textbf{Purpose:} Baseline MBA vs BA comparison validation
+\begin{itemize}
+\item \textbf{Configuration:} 1000 days, 10 replicates, 100 agents per type
+\item \textbf{Execution:} Independent MBA-only (n\_mba=100, n\_ba=0) and BA-only (n\_mba=0, n\_ba=100) populations
+\item \textbf{Parameters:} Learning rate $\eta=0.3$, cost multiplier=1.0, $\varepsilon=0.0$, penalty $\gamma=0.7$, canonical permutation (0,1,2,3,4)
+\item \textbf{Output:} Delta analysis CSV, time series plots, population entropy trajectories
+\item \textbf{Validation:} Sanity gates require $\Delta_{\text{final\_mean}} \geq 0.10$ and proportion\_positive $\geq 0.7$
+\end{itemize}
+
+\paragraph{2. Stress Test Wrapper (\texttt{stress.py})}
+\textbf{Purpose:} Environmental stochasticity threshold identification
+\begin{itemize}
+\item \textbf{Configuration:} 1000 days, 10 replicates per epsilon level
+\item \textbf{Epsilon sweep:} [0.01, 0.1, 0.2, 0.3, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
+\item \textbf{Execution:} MBA vs BA comparison at each epsilon level
+\item \textbf{Expected outcome:} MBA advantage decreases monotonically with increasing $\varepsilon$, crossing zero at $\varepsilon \approx 0.2$
+\end{itemize}
+
+\paragraph{3. Topology Scan Wrapper (\texttt{topology.py})}
+\textbf{Purpose:} Robustness across environmental permutations
+\begin{itemize}
+\item \textbf{Configuration:} 600 days, 5 replicates, all 120 permutations of HES sequence
+\item \textbf{Metrics:} Hamming distance to canonical cycle, P3 slot position, P1 slot distribution
+\item \textbf{Analysis:} MBA advantage vs topological features (Kruskal--Wallis test across Hamming distances)
+\end{itemize}
+
+\paragraph{4. Grid Sweep Wrapper (\texttt{grid\_sweep.py})}
+\textbf{Purpose:} Multi-dimensional parameter space exploration
+\begin{itemize}
+\item \textbf{Configuration:} Factorial design across 4 parameters $\times$ 5 permutations
+    \begin{itemize}
+    \item Epsilon: [0.0, 0.1, 0.2, 0.25]
+    \item Learning rate: [0.1, 0.3, 0.5, 0.7]
+    \item Cost multiplier: [0.5, 1.0, 1.5, 2.0]
+    \item Penalty: [0.2, 0.5, 0.7, 0.8]
+    \end{itemize}
+\item \textbf{Scale:} 320 parameter combinations, 600 days, 5 replicates each
+\item \textbf{Parallelization:} Configurable worker threads for concurrent execution
+\item \textbf{Output:} grid\_summary.csv with per-cell delta statistics, heatmap visualizations
+\end{itemize}
+
+\paragraph{5. Continuous Sweep Wrapper (\texttt{continuous\_sweep.py})}
+\textbf{Purpose:} High-density sampling for regression analysis
+\begin{itemize}
+\item \textbf{Configuration:} Randomized parameter sampling within ranges
+    \begin{itemize}
+    \item Epsilon: [0.0, 0.2], Learning rate: [0.0, 0.9]
+    \item Cost multiplier: [0.0, 2.0], Penalty: [0.0, 0.8]
+    \end{itemize}
+\item \textbf{Scale:} 5000+ experiments, random permutation selection
+\item \textbf{Format:} continuous\_summary.csv compatible with CatBoost/SHAP analysis
+\item \textbf{Incremental:} Supports resumable data collection for ongoing analysis
+\end{itemize}
+
+\subsubsection{Unified Driver System}
+
+All experiments execute through a single unified driver (\texttt{unified\_driver.py}) that ensures consistent:
+\begin{itemize}
+\item \textbf{Genome initialization:} 452-bit boolean vectors with deterministic seeding
+\item \textbf{Population dynamics:} Moran process with fitness-proportional selection
+\item \textbf{Mutation rate:} $\mu = 10^{-4}$ per bit across both agent types
+\item \textbf{Output format:} Standardized CSV schema with agent-level and population-level metrics
+\item \textbf{Reproducibility:} Explicit seed management for deterministic replication
+\end{itemize}
+
+\subsubsection{Data Collection Standards}
+
+\paragraph{Agent-Level Records}
+Each agent record captures:
+\begin{itemize}
+\item \textbf{Identity:} rep\_id, day, agent\_id, agent\_type
+\item \textbf{Phenotype:} phenotype\_sequence (5-stage), daily\_fitness, plasticity cost
+\item \textbf{Genome:} genome\_hash, genotype string, age
+\item \textbf{Learning:} learning\_events, preparation\_success\_rate
+\end{itemize}
+
+\paragraph{Population-Level Metrics}
+\begin{itemize}
+\item \textbf{Entropy:} Shannon entropy of phenotype sequence distribution
+\item \textbf{Fitness statistics:} Mean, variance, percentiles across agent types
+\item \textbf{Genetic diversity:} Number of unique genotypes, fixation events
+\end{itemize}
+
+\paragraph{Delta Analysis}
+Standardized MBA-BA comparison:
+\begin{itemize}
+\item \textbf{Window-based metrics:} Final 200-day average for convergence assessment
+\item \textbf{Statistical testing:} Mann--Whitney U tests, proportion of positive deltas
+\item \textbf{Visualization:} Time series, distribution plots, effect size estimation
+\end{itemize}
+
+\subsubsection{Computational Implementation}
+
+\begin{itemize}
+\item \textbf{Language:} Python 3.9+ with NumPy vectorization
+\item \textbf{Architecture:} Modular package structure (\texttt{mba\_vs\_ba\_sim/})
+\item \textbf{Parallelization:} joblib-based parallel execution for parameter sweeps
+\item \textbf{Scalability:} Memory-efficient streaming for large-scale experiments
+\item \textbf{Validation:} Integrated sanity gates and consistency checks
+\item \textbf{Documentation:} Comprehensive manifest files tracking all experimental parameters and outcomes
+\end{itemize}
+
+\subsubsection{Analysis Pipeline}
+
+\paragraph{Machine Learning Integration}
+Large-scale parameter sweeps integrate directly with modern ML analysis:
+
+\begin{itemize}
+\item \textbf{CatBoost Regression:} Trained on continuous\_summary.csv to predict $\Delta_{\text{final\_mean}}$ from parameters
+\item \textbf{SHAP Analysis:} Model-agnostic feature importance and interaction effects
+\item \textbf{Performance:} Typical RMSE < 0.03 on 5000+ experiments with cross-validation
+\end{itemize}
+
+\paragraph{Visualization Framework}
+Standardized plotting utilities generate publication-ready figures:
+
+\begin{itemize}
+\item \textbf{3D Parameter Landscapes:} Interactive scatter plots with size $\propto \Delta$, color-coded by secondary parameters
+\item \textbf{Heatmaps:} Parameter pair projections with aggregated performance metrics
+\item \textbf{Time Series:} Population dynamics with confidence intervals across replicates
+\item \textbf{Pareto Frontiers:} Multi-objective identification of optimal parameter regimes
+\end{itemize}
+
+\paragraph{Output Directory Structure}
+\begin{verbatim}
+wrappers_output/
+├── vanilla/
+│   ├── mba/          # MBA-only CSV files
+│   ├── ba/           # BA-only CSV files  
+│   ├── delta.csv     # Δ analysis
+│   ├── plots/        # Visualizations
+│   ├── logs/         # Execution logs
+│   └── manifest.json # Complete metadata
+├── stress/
+│   ├── eps_0.01/     # Per-epsilon results
+│   ├── eps_0.10/
+│   └── grid_summary.csv
+├── grid_sweep/
+│   ├── grid_summary.csv  # All parameter combinations
+│   ├── plots/
+│   └── eda/          # Exploratory data analysis
+└── continuous_sweep/
+    ├── continuous_summary.csv  # High-density sampling
+    ├── experiments/    # Individual experiment specs
+    └── perm_*/         # Per-permutation organization
+\end{verbatim}
+
+\subsection{Data Collection and Analysis}
+
+\subsubsection{Fitness Tracking}
+Daily fitness was calculated as the mean fitness across all five environmental states within each day. Final daily fitness for MBAs included subtraction of plasticity costs.
+
+\subsubsection{Population Entropy}
+Shannon entropy was calculated from the distribution of phenotype sequences within each population: $H = -\sum(p_i \times \log_2(p_i))$, where $p_i$ is the frequency of sequence $i$.
+
+\subsubsection{Muller Plots}
+Population genetic dynamics were visualized using Muller plots showing the frequency trajectories of the 9 most common genotype sequences over time, with remaining sequences aggregated as "Other."
+
+\subsubsection{Statistical Analysis}
+All experiments used multiple independent replicates with results reported as mean $\pm$ standard error of the mean (SEM). Population-level dynamics were averaged across replicates, and evolutionary trajectories were analyzed using time-series methods.
+
+\subsection{Implementation Details}
+
+The simulation was implemented in Python using NumPy for numerical computations and SciPy for statistical functions. The complete codebase is structured as a modular package with separate components for:
+\begin{itemize}
+\item Agent classes (\texttt{mba\_vs\_ba\_sim.agents})
+\item Environmental dynamics (\texttt{mba\_vs\_ba\_sim.env})
+\item Population evolution (\texttt{mba\_vs\_ba\_sim.population})
+\item Experimental scripts (\texttt{scripts/})
+\end{itemize}
+
+All random number generation used NumPy's PCG64 generator with explicit seed management for reproducibility. Computational experiments were designed to be fully deterministic given input parameters and random seeds.
+
+\subsection{Smart Incubator Platform }
+
+The Smart Incubator is an automated platform for long‑duration experiments that impose temporally structured thermal stresses and sensory cues on microbial cultures. The system enables tests of phenotypic plasticity, prediction, and memory by controlling temperature and one or two cue modalities (LED light, vibration) under pre‑defined temporal relationships. Full firmware, wiring diagrams, and bill of materials are available in the companion GitHub repository (release tag cited in the manuscript) and are sufficient to reproduce the hardware and firmware implementation.
+
+\paragraph{Hardware/firmware overview.} The controller is an ESP32‑based unit that drives a resistive heater and a Peltier cooler and reads a PT100 RTD via a MAX31865 interface. An OLED provides local status; a microSD card stores logs. The firmware (MicroPython) separates (i) hardware drivers, (ii) closed‑loop temperature control, (iii) experiment logic (cycle scheduling and cue–heat correlation modes), and (iv) logging/safety. All pin‑level details, PID constants, and watchdog settings are in the GitHub docs and are not required to interpret the experiments.
+
+\paragraph{Thermal and cue control.} Temperature is maintained in closed loop with a PID controller tuned for 15–40,\textdegree C operation. Heating and cooling actuators are driven by PWM and never co‑activate. Typical heat shocks were to 32,\textdegree C (30,min) from a 23,\textdegree C baseline, with ramps of $~2\!\text{–}\!3\,\text{min}$ to heat and $~5\!\text{–}\!8\,\text{min}$ to cool. Cues were delivered by either a white LED (intensity specified as a duty cycle) or a miniature vibration motor (pulsed), as indicated in each figure legend.
+
+\paragraph{Correlation modes.} We implemented two cue–heat relationships: (i) \emph{Non‑predictive} (Mode 0), where cue timing within the basal phase is randomized independently of the heat‑shock onset; and (ii) \emph{Predictive} (Mode 1), where the cue precedes heat shock by a fixed interval (typically 30,min). Cycle durations were randomly sampled within user‑specified bounds to minimize temporal entrainment. Exact bounds and the cue–heat interval used in each experiment are provided in the figure legends and Table~S1.
+
+\paragraph{Logging and integrity.} The device writes a snapshot of the system state at fixed intervals (10,s unless stated otherwise), including timestamp, measured/target temperature, controller output, cue states, and cycle/phase identifiers. A per‑experiment manifest with SHA‑256 hashes is generated for all files. The JSON schema, directory structure, and integrity checks are documented in the repository; the raw fields used in the analyses reported here are listed in Table~S2.
+
+\paragraph{Safety.} Firmware enforces temperature limits and actuator duty‑cycle caps and enters a safe state on sensor faults or SD errors. Emergency stop can be triggered locally or via the optional web interface.
+
+\subsection{Experimental Protocol Framework }
+
+Experiments consisted of repeated basal and heat‑shock phases organized into cycles with randomized durations (default range in Table~S1). In predictive (Mode 1) runs, a cue was presented a fixed interval before heat shock; in non‑predictive (Mode 0) runs, cue timing was independent of heat shock. All default values appearing in figures correspond to those actually used for the specific dataset; no unused defaults are reported in the main text.
+
+\subsection{Data Handling and Availability }
+
+All device logs (JSON/CSV) and analysis notebooks are archived with the manuscript. Code and firmware are available at the project repository (release tag and commit hash cited in the Data/Code Availability statement). Analyses rely only on the fields defined in Table~S2; any additional telemetry present in logs is not required to reproduce the results.
+
+\subsection{MCMC Microscope Chemostat Platform }
+
+The MCMC platform converts a standard microscope into a multi‑channel continuous‑culture system with real‑time image‑based cell counting and closed‑loop control. Each culture channel comprises four peristaltic pumps (media, signal, chamber, overflow) driven by an ESP32 controller; a separate ESP32 regulates the bath temperature. A host computer coordinates channels via MQTT and performs image segmentation (Cellpose) to estimate cell density.
+
+\paragraph{Operating modes.} We used three established control modes: chemostat (fixed dilution), turbidostat (density setpoint with proportional dilution), and morbidostat (drug concentration adjusted based on growth). Mode‑specific parameters (dilution rates, density setpoints, hysteresis, and drug step sizes) are listed in Table~S3. Pump calibration curves and timing diagrams are provided in the repository and are not required to interpret the biology.
+
+\paragraph{Imaging and analysis.} Images were captured at user‑specified intervals and segmented with Cellpose; segmentation parameters and version numbers appear in Table~S4. Conversion from counts to cells,/,mL used a channel‑specific volume calibration. Quality control excluded frames with failed focus/segmentation according to pre‑registered thresholds (Table~S4).
+
+\paragraph{Telemetry and logging.} All channels and the temperature controller publish 1,Hz telemetry; the host aggregates event logs and summaries per experiment. File organization, schema, and checksum routines follow the same conventions as the Smart Incubator and are described in the repository.
+
+\subsection{Safety and Fault Tolerance }
+
+Hardware current limits, firmware watchdogs, parameter validation, and a global emergency stop ensure safe operation. On network loss, nodes continue with their last valid schedule and backfill logs on reconnection. Error conditions and recoveries are recorded in per‑run diagnostics files.
+
+\subsection{What is relegated to Supplementary/Repository}
+
+Pin‑level GPIO tables, full PID constants, MQTT topic maps, example JSON snapshots, directory trees, exhaustive default values, and low‑level retry/garbage‑collection policies are provided in Supplementary Methods and the GitHub repository (Bill of Materials, wiring diagrams, and calibration notebooks). These implementation details are not necessary to evaluate or reproduce the biological experiments when the cited release is available.
+\section{Funding}
+This work was supported by PID2023-153273NB-I00 funded by \href{https://doi.org/10.13039/501100011033}{MICIU/AEI} and FEDER, UE.
+
+ We also acknowledge support to Departament de Recerca i Universitats de la Generalitat de Catalunya (exp. 2021 SGR 00751).
+
+\renewcommand{\bibsection}{\section{References}}
+\bibliography{references2.bib}
+%\printbibliography
+
+
+\end{document}
