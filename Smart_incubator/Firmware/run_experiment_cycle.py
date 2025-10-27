@@ -135,11 +135,12 @@ def run_experiment_cycle(
                 cycle_stats['error_count'] += 1
                 
                 if consecutive_invalid_readings >= max_invalid_readings:
-                    print("[ERROR] Too many consecutive invalid temperature readings")
-                    print("[ERROR] Stopping experiment cycle")
+                    print("[CRITICAL] Too many consecutive invalid temperature readings")
+                    print("[CRITICAL] This indicates a sensor hardware failure - stopping experiment")
                     if experiment_logger:
                         experiment_logger.finalize_experiment(status='error', error='Too many invalid temperature readings')
-                    return
+                    # Raise exception to stop the entire experiment, not just this cycle
+                    raise RuntimeError("Temperature sensor failure - too many consecutive invalid readings")
                 
                 # Use last valid temperature if available
                 if last_valid_temp is not None:
@@ -160,11 +161,12 @@ def run_experiment_cycle(
                     cycle_stats['error_count'] += 1
                     
                     if consecutive_invalid_readings >= max_invalid_readings:
-                        print("[ERROR] Too many consecutive invalid temperature readings")
-                        print("[ERROR] Stopping experiment cycle")
+                        print("[CRITICAL] Too many consecutive invalid temperature readings")
+                        print("[CRITICAL] Sensor fault detected - stopping experiment for safety")
                         if experiment_logger:
-                            experiment_logger.finalize_experiment(status='error', error='Too many invalid temperature readings')
-                        return
+                            experiment_logger.finalize_experiment(status='error', error=f'Too many invalid temperature readings, fault: {fault}')
+                        # Raise exception to stop the entire experiment, not just this cycle
+                        raise RuntimeError(f"Temperature sensor fault - {fault if fault else 'unknown fault'}")
                     
                     # Use last valid temperature if available
                     if last_valid_temp is not None:
@@ -248,9 +250,20 @@ def run_experiment_cycle(
                     if not experiment_logger.log_snapshot(cycle_number, snapshot_data):
                         print("[ERROR] Failed to save data to SD card")
                         sd_card_failed = True
+                        
+                        # CRITICAL: Check if SD is completely dead
+                        if not experiment_logger.sd_write_ok:
+                            print("[CRITICAL] SD card marked as unhealthy! Stopping experiment.")
+                            raise RuntimeError("SD card write failures exceeded threshold - experiment halted for safety")
+                            
                 except Exception as e:
                     print(f"[ERROR] SD card logging error: {e}")
                     sd_card_failed = True
+                    
+                    # If this is a critical SD failure, re-raise to stop the experiment
+                    if "SD card write failures exceeded threshold" in str(e):
+                        raise
+                    
                     print("[WARNING] SD card logging disabled for this cycle. Experiment continues.")
                     # Continue running even if logging fails
                     
@@ -305,6 +318,11 @@ def run_experiment_cycle(
         if experiment_logger:
             if not experiment_logger.log_cycle_summary(cycle_number, cycle_stats):
                 print("[ERROR] Failed to save cycle summary")
+                
+                # CRITICAL: Check if SD is completely dead
+                if not experiment_logger.sd_write_ok:
+                    print("[CRITICAL] SD card marked as unhealthy! Stopping experiment.")
+                    raise RuntimeError("SD card write failures exceeded threshold - experiment halted for safety")
             
     except Exception as e:
         print(f"[Cycle {cycle_number}] Error: {e}")

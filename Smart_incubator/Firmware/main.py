@@ -33,7 +33,7 @@ min_interval = 200      # minutes (not seconds!)
 max_interval = 400      # minutes (not seconds!)
 us_duration = 30     # 30 seconds = 0.5 minutes
 heat_duration = 30     # 2 minutes - increased for testing to see temp change
-correlation = 1       # US precedes heat shock at end of cycle
+correlation = 0       # US precedes heat shock at end of cycle
 
 def init_output_pins():
     """Initialize all output pins with PWM."""
@@ -234,6 +234,20 @@ def main():
     
     while True:
         try:
+            # CRITICAL: Check SD health before starting cycle
+            if experiment_logger and not experiment_logger.sd_write_ok:
+                print(f"\n[CRITICAL] SD card is unhealthy - cannot start cycle {cycle_number}")
+                print("[CRITICAL] Experiment halted to prevent data loss")
+                experiment_logger.finalize_experiment(status='error', error='SD card write failures')
+                break
+            
+            # Memory health check
+            gc.collect()
+            free_mem = gc.mem_free()
+            print(f"\n[Memory] Free heap: {free_mem} bytes")
+            if free_mem < 10000:  # Less than 10KB free
+                print(f"[WARNING] Low memory detected! Free: {free_mem} bytes")
+            
             print(f"\n{'='*50}")
             print(f"Starting Cycle {cycle_number}")
             print(f"{'='*50}\n")

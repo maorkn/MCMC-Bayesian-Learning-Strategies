@@ -58,17 +58,31 @@ class ExperimentLogger:
         }
         self.write_count = 0
         self.snapshot_count = 0  # Track total snapshots logged
+        self.consecutive_write_failures = 0  # Track SD write failures
+        self.max_write_failures = 10  # Stop experiment after this many failures
+        self.sd_write_ok = True  # Flag to track SD health
         
     def _generate_experiment_id(self):
-        """Generate experiment ID with date and correlation."""
+        """Generate experiment ID with timestamp and correlation."""
         try:
             correlation = float(self.meta_data.get('correlation', 1))
-            timestamp = time.time()
-            # Format: DDMMYYYY_corr
-            return f"{int(timestamp/86400)}_{int(correlation)}"
+            # Use RTC time to create a meaningful experiment ID
+            # Format: YYYYMMDD_HHMMSS_corr
+            try:
+                rtc = machine.RTC()
+                dt = rtc.datetime()
+                # dt format: (year, month, day, weekday, hours, minutes, seconds, subseconds)
+                exp_id = f"{dt[0]:04d}{dt[1]:02d}{dt[2]:02d}_{dt[4]:02d}{dt[5]:02d}{dt[6]:02d}_{int(correlation)}"
+            except Exception as e:
+                # Fallback to Unix timestamp if RTC not available
+                print(f"[WARNING] RTC not available, using timestamp: {e}")
+                exp_id = f"{int(time.time())}_{int(correlation)}"
+            
+            return exp_id
         except Exception as e:
             print(f"[WARNING] Error generating experiment ID: {e}")
-            return f"{int(time.time()/86400)}_1"
+            # Ultimate fallback
+            return f"{int(time.time())}_{int(correlation) if 'correlation' in locals() else 0}"
     
     def _get_timestamp(self):
         """Return Unix timestamp (integer seconds since epoch). Using a simple integer guarantees filenames without invalid FAT characters."""
@@ -112,21 +126,26 @@ class ExperimentLogger:
             return None
     
     def _update_manifest(self, force=False):
-        """Update manifest.json file."""
+        """Update manifest.json file - with limited file list to prevent memory issues."""
         global write_count
         write_count += 1
         
         if force or write_count % MANIFEST_UPDATE_INTERVAL == 0:
             try:
-                # Limit manifest file list to last 100 entries to prevent memory buildup
-                if len(self.manifest['files']) > 100:
-                    self.manifest['files'] = self.manifest['files'][-100:]
+                # CRITICAL: Limit manifest file list to prevent memory buildup
+                # Keep only last 50 entries instead of 100 to be more conservative
+                if len(self.manifest['files']) > 50:
+                    print(f"[WARNING] Manifest file list at {len(self.manifest['files'])} entries, trimming to 50")
+                    self.manifest['files'] = self.manifest['files'][-50:]
                     
                 with open(f'{self.base_path}/manifest.json', 'w') as f:
                     json.dump(self.manifest, f)
                 write_count = 0  # Reset counter after successful write
+                return True
             except Exception as e:
                 print(f"[ERROR] Failed to update manifest: {e}")
+                return False
+        return True  # If not time to update, still return success
     
     def init_experiment(self):
         """Initialize experiment directory and meta.json."""
@@ -150,7 +169,11 @@ class ExperimentLogger:
             return False
     
     def log_snapshot(self, cycle_num, data):
-        """Log a single data snapshot."""
+        """Log a single data snapshot. Returns False if SD write fails critically."""
+        # Check if SD is healthy
+        if not self.sd_write_ok:
+            return False
+            
         timestamp = self._get_timestamp()
         filename = f'cycle_{cycle_num}_{timestamp}.json'
         
@@ -175,10 +198,12 @@ class ExperimentLogger:
             
             # Try writing with retries
             max_retries = 3
+            write_success = False
             for retry in range(max_retries):
                 try:
                     with open(filepath, 'w') as f:
                         json.dump(safe_data, f)
+                    write_success = True
                     break  # Success, exit retry loop
                 except OSError as e:
                     if retry < max_retries - 1:
@@ -186,6 +211,9 @@ class ExperimentLogger:
                         continue
                     else:
                         raise  # Re-raise on final attempt
+            
+            if not write_success:
+                raise OSError("Failed to write after retries")
             
             # Calculate checksum from file contents
             checksum = self._calculate_checksum(filepath)
@@ -198,19 +226,34 @@ class ExperimentLogger:
                     'timestamp': timestamp
                 }
                 self.manifest['files'].append(file_info)
-                self._update_manifest()
+                if not self._update_manifest():
+                    print(f"[WARNING] Manifest update failed but data was written")
             
             # Commented out to prevent output flooding
             # print(f"[EXP:{self.experiment_id}] Logged cycle {cycle_num} snapshot")
             self.snapshot_count += 1
+            
+            # Reset failure counter on success
+            self.consecutive_write_failures = 0
             return True
             
         except Exception as e:
-            print(f"[ERROR] Failed to log snapshot: {e}")
+            self.consecutive_write_failures += 1
+            print(f"[ERROR] Failed to log snapshot (failure {self.consecutive_write_failures}/{self.max_write_failures}): {e}")
+            
+            # CRITICAL: Check if we've exceeded failure threshold
+            if self.consecutive_write_failures >= self.max_write_failures:
+                print(f"[CRITICAL] SD card write failures exceeded threshold! Marking SD as unhealthy.")
+                self.sd_write_ok = False
+                
             return False
     
     def log_cycle_summary(self, cycle_num, summary_data):
-        """Log end-of-cycle summary."""
+        """Log end-of-cycle summary. Returns False if SD write fails critically."""
+        # Check if SD is healthy
+        if not self.sd_write_ok:
+            return False
+            
         filename = f'cycle_{cycle_num}_summary.json'
         timestamp = self._get_timestamp()  # Get timestamp once
         
@@ -235,10 +278,12 @@ class ExperimentLogger:
             
             # Try writing with retries
             max_retries = 3
+            write_success = False
             for retry in range(max_retries):
                 try:
                     with open(filepath, 'w') as f:
                         json.dump(safe_summary, f)
+                    write_success = True
                     break  # Success, exit retry loop
                 except OSError as e:
                     if retry < max_retries - 1:
@@ -246,6 +291,9 @@ class ExperimentLogger:
                         continue
                     else:
                         raise  # Re-raise on final attempt
+            
+            if not write_success:
+                raise OSError("Failed to write after retries")
             
             # Calculate checksum from file contents
             checksum = self._calculate_checksum(filepath)
@@ -258,15 +306,26 @@ class ExperimentLogger:
                     'timestamp': timestamp
                 }
                 self.manifest['files'].append(file_info)
-                self._update_manifest()
+                if not self._update_manifest():
+                    print(f"[WARNING] Manifest update failed but summary was written")
             
             # Keep this print - it only happens once per cycle
             print(f"[EXP:{self.experiment_id}] Logged cycle {cycle_num} summary ({self.snapshot_count} snapshots)")
             self.snapshot_count = 0  # Reset for next cycle
+            
+            # Reset failure counter on success
+            self.consecutive_write_failures = 0
             return True
             
         except Exception as e:
-            print(f"[ERROR] Failed to log cycle summary: {e}")
+            self.consecutive_write_failures += 1
+            print(f"[ERROR] Failed to log cycle summary (failure {self.consecutive_write_failures}/{self.max_write_failures}): {e}")
+            
+            # CRITICAL: Check if we've exceeded failure threshold
+            if self.consecutive_write_failures >= self.max_write_failures:
+                print(f"[CRITICAL] SD card write failures exceeded threshold! Marking SD as unhealthy.")
+                self.sd_write_ok = False
+                
             return False
     
     def finalize_experiment(self, status='completed', error=None):

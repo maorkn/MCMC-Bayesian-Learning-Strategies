@@ -85,19 +85,34 @@ time.sleep(1.0)  # Longer delay for complete system stabilization
 print("\n=== Boot Sequence Complete ===")
 print("✓ All stages completed successfully")
 print("✓ System ready for main program")
-print("=== Starting Web Server Mode ===\n")
 
-# Start the main program
-time.sleep(0.5)
-print("Starting Main Program...")
-
+# Check for deployment mode flag
+deployment_mode_active = False
 try:
-    # Run the working main program
-    import main
-    main.main()
+    import os
+    if 'deployment_mode' in os.listdir('/'):
+        deployment_mode_active = True
+        print("\n=== DEPLOYMENT MODE ===")
+        print("Deployment mode flag detected")
+        print("Main program will NOT auto-run")
+        print("You can now safely update files")
+        print("Remove /deployment_mode file to resume normal operation")
+        print("===================")
 except Exception as e:
-    print(f"Main program error: {e}")
-    print("System will remain in REPL mode")
-    # Do not automatically restart - just exit to REPL
+    print(f"⚠ Could not check deployment mode: {e}")
+    print("Will assume normal mode")
 
+# Only run main if NOT in deployment mode
+if not deployment_mode_active:
+    print("=== Starting Web Server Mode ===\n")
+    time.sleep(0.5)
+    print("Starting Main Program...")
+    
+    try:
+        import main
+        main.main()
+    except Exception as e:
+        print(f"Main program error: {e}")
+        print("System will remain in REPL mode")
 
+# Boot complete - stay in REPL if deployment mode active or if main exited

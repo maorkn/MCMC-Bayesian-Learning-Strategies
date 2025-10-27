@@ -1,0 +1,14 @@
+# MicroPython Packages Required for Smart Incubator
+# These will be installed automatically on first deployment
+
+# Display driver (if using SSD1306 OLED)
+# micropython-ssd1306
+
+# Temperature sensor (if using MAX31865)
+# micropython-max31865
+
+# Add your required packages here, one per line
+# Format: package-name
+# Example:
+# micropython-umqtt.simple
+# micropython-urequests

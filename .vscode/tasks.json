@@ -1,0 +1,170 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Smart Incubator: Sync Firmware (Auto)",
+      "type": "shell",
+      "command": "python3",
+      "args": ["${workspaceFolder}/Smart_incubator/sync_firmware.py"],
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared",
+        "showReuseMessage": false
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Smart Incubator: Deploy Core HES Modules",
+      "type": "shell",
+      "command": "${workspaceFolder}/Smart_incubator/deploy.sh",
+      "args": [
+        "${input:portName}",
+        "core"
+      ],
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Smart Incubator: Deploy Full Firmware",
+      "type": "shell",
+      "command": "${workspaceFolder}/Smart_incubator/deploy.sh",
+      "args": [
+        "${input:portName}",
+        "full"
+      ],
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Smart Incubator: Deploy Config Files Only",
+      "type": "shell",
+      "command": "${workspaceFolder}/Smart_incubator/deploy.sh",
+      "args": [
+        "${input:portName}",
+        "config-only"
+      ],
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Smart Incubator: Open REPL",
+      "type": "shell",
+      "command": "mpremote",
+      "args": [
+        "connect",
+        "${input:portName}",
+        "repl"
+      ],
+      "presentation": {
+        "echo": false,
+        "reveal": "always",
+        "focus": true,
+        "panel": "dedicated"
+      },
+      "problemMatcher": [],
+      "isBackground": true
+    },
+    {
+      "label": "Smart Incubator: List Files on Device",
+      "type": "shell",
+      "command": "mpremote",
+      "args": [
+        "connect",
+        "${input:portName}",
+        "ls"
+      ],
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Smart Incubator: Run Experiment",
+      "type": "shell",
+      "command": "mpremote",
+      "args": [
+        "connect",
+        "${input:portName}",
+        "exec",
+        "import markovian_hes_executor; markovian_hes_executor.run_experiment('/sd/${input:configFile}')"
+      ],
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": true,
+        "panel": "dedicated"
+      },
+      "problemMatcher": [],
+      "isBackground": true
+    },
+    {
+      "label": "Smart Incubator: Reset Device",
+      "type": "shell",
+      "command": "mpremote",
+      "args": [
+        "connect",
+        "${input:portName}",
+        "reset"
+      ],
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Smart Incubator: Format SD Card",
+      "type": "shell",
+      "command": "python3",
+      "args": ["${workspaceFolder}/Smart_incubator/format_sd_card.py"],
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": true,
+        "panel": "dedicated",
+        "showReuseMessage": false
+      },
+      "problemMatcher": []
+    }
+  ],
+  "inputs": [
+    {
+      "id": "portName",
+      "type": "promptString",
+      "description": "ESP32 Port (e.g., /dev/tty.usbserial-0001)",
+      "default": "/dev/tty.usbserial-0001"
+    },
+    {
+      "id": "configFile",
+      "type": "promptString",
+      "description": "Config filename on SD card (e.g., experiment.json)",
+      "default": "experiment.json"
+    }
+  ]
+}

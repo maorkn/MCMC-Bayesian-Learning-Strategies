@@ -244,6 +244,67 @@ The platform emphasizes:
 
 ## Quick Start
 
+### ⚡ Fast Track (Recommended)
+
+**For complete deployment instructions, see:**
+- 📘 **[DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md)** - Complete deployment documentation
+- 🚀 **[QUICK_START.md](QUICK_START.md)** - Visual workflows and examples
+
+**Quick commands:**
+
+```bash
+# 1️⃣ First time setup (blank ESP32)
+python3 Smart_incubator/sync_firmware.py
+
+# 2️⃣ Deploy changes (auto-detects modified files)
+python3 Smart_incubator/sync_firmware.py
+
+# 3️⃣ Format SD card for new experiments (⚠️ deletes data!)
+python3 Smart_incubator/format_sd_card.py
+
+# 4️⃣ Or use VS Code (even easier!)
+# Press Cmd+Shift+B to deploy
+# Press Cmd+Shift+P → "Tasks: Run Task" → choose task
+```
+
+**Available VS Code Tasks:**
+- **Sync Firmware (Auto)** - Smart deployment (default: `Cmd+Shift+B`)
+- **Format SD Card** - Clean SD card for new experiments
+- **Deploy Core HES Modules** - Upload only HES system files
+- **Deploy Full Firmware** - Upload all firmware files
+- **Deploy Config Files Only** - Upload experiment configs
+- **Open REPL** - Interactive Python shell
+- **Run Experiment** - Start an experiment
+- **List Files on Device** - Show ESP32 filesystem
+- **Reset Device** - Soft reset ESP32
+
+### 📚 Deployment Tools
+
+The Smart Incubator includes sophisticated deployment automation:
+
+#### 1. **Intelligent Sync** (`sync_firmware.py`)
+Auto-detects changes and uploads only modified files:
+- First run: Installs packages, creates directories, uploads everything
+- Subsequent runs: Only syncs changed files (much faster!)
+- Force reinstall: `--force` flag
+- Auto-detects ESP32 port
+
+#### 2. **SD Card Formatter** (`format_sd_card.py`)
+Prepares SD card with proper structure:
+- Removes all experiment data
+- Clears old config files  
+- Creates fresh directory structure
+- Shows storage statistics
+- Requires double confirmation for safety
+
+#### 3. **Manual Deployment** (`deploy.sh`)
+Traditional deployment script for specific scenarios:
+- Core modules only
+- Full firmware
+- Config files only
+
+---
+
 ### Prerequisites
 
 **Hardware Setup:**

@@ -40,7 +40,8 @@ class TempController:
         self.last_target = 23.0
         self.last_valid_temp = None
         self.temp_read_errors = 0
-        self.max_temp_errors = 5
+        self.max_temp_errors = 10  # Increased from 5 to 10 for more robustness
+        self.consecutive_success_to_reset = 5  # Reset error counter after this many successful reads
         
         # Initialize failsafe system
         self.failsafe = TemperatureFailsafe(
@@ -64,6 +65,7 @@ class TempController:
                 self.last_target = target_temp
 
             current_temp = None
+            successful_reads = 0  # Track consecutive successful reads
             for attempt in range(3):
                 try:
                     temp_reading = read_temperature()
@@ -79,7 +81,7 @@ class TempController:
                         
                         current_temp = temp_reading
                         self.last_valid_temp = current_temp
-                        self.temp_read_errors = 0
+                        successful_reads += 1
                         break
                     else:
                         if attempt < 2:
@@ -91,25 +93,39 @@ class TempController:
 
             if current_temp is None:
                 self.temp_read_errors += 1
-                print(f"[ERROR] Failed to get valid temperature after 3 attempts (errors: {self.temp_read_errors})")
+                print(f"[ERROR] Failed to get valid temperature after 3 attempts (errors: {self.temp_read_errors}/{self.max_temp_errors})")
                 
                 if self.last_valid_temp is not None and self.temp_read_errors < self.max_temp_errors:
                     print(f"[WARNING] Using last valid temperature: {self.last_valid_temp:.1f}°C")
                     current_temp = self.last_valid_temp
                 else:
-                    print("[ERROR] No valid temperature available, stopping control")
+                    print("[CRITICAL] No valid temperature available, stopping control")
+                    print("[CRITICAL] This may indicate a sensor hardware failure")
                     return None, 0, "Error"
+            else:
+                # Reset error counter after successful read
+                # This provides better recovery from transient errors
+                if self.temp_read_errors > 0:
+                    self.temp_read_errors = max(0, self.temp_read_errors - 1)
+                    if self.temp_read_errors == 0:
+                        print("[INFO] Temperature sensor errors cleared after successful reads")
             
             temp_diff = current_temp - target_temp
             
-            power = self.pid.compute(target_temp, current_temp)
-            actual_power = power
-
-            # When idle, ensure both heater and cooler are off.
+            # Check deadband BEFORE computing PID to prevent integral windup
+            # Deadband: -0.1°C to +0.5°C (slightly asymmetric to prevent oscillation)
             if -0.1 <= temp_diff <= 0.5:
+                # Reset PID state when in deadband to prevent integral windup
+                self.pid.prev_error = 0
+                # Keep a small integral to respond faster when leaving deadband
+                self.pid.integral *= 0.5  # Decay integral instead of resetting completely
                 self.heater.turn_off()
                 self.cooler.turn_off()
                 return current_temp, 0, "Idle"
+            
+            # Only compute PID when outside deadband
+            power = self.pid.compute(target_temp, current_temp)
+            actual_power = power
             
             if power > 0:
                 self.cooler.turn_off()
