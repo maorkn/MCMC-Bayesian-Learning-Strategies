@@ -259,8 +259,7 @@ python3 Smart_incubator/sync_firmware.py
 # 2️⃣ Deploy changes (auto-detects modified files)
 python3 Smart_incubator/sync_firmware.py
 
-# 3️⃣ Format SD card for new experiments (⚠️ deletes data!)
-python3 Smart_incubator/format_sd_card.py
+# 3️⃣ Format SD card - see SD Card Formatting section below
 
 # 4️⃣ Or use VS Code (even easier!)
 # Press Cmd+Shift+B to deploy
@@ -278,7 +277,55 @@ python3 Smart_incubator/format_sd_card.py
 - **List Files on Device** - Show ESP32 filesystem
 - **Reset Device** - Soft reset ESP32
 
-### 📚 Deployment Tools
+---
+
+### � SD Card Formatting
+
+**Two methods available depending on your needs:**
+
+#### Method 1: Full Local Reformat (Recommended for new/corrupted cards)
+Creates a fresh FAT32 (MBR) filesystem with required directories.
+
+**macOS:**
+```bash
+# List available disks
+diskutil list
+python3 Smart_incubator/format_sd_card_local.py --list
+
+# Format (replace disk6 with your SD card identifier)
+python3 Smart_incubator/format_sd_card_local.py /dev/disk6
+
+# Eject safely
+diskutil eject /dev/disk6
+```
+
+**Linux:**
+```bash
+# List available disks
+lsblk
+python3 Smart_incubator/format_sd_card_local.py --list
+
+# Format (replace sdb with your SD card identifier)
+sudo python3 Smart_incubator/format_sd_card_local.py /dev/sdb
+
+# Eject safely
+sudo eject /dev/sdb
+```
+
+#### Method 2: ESP32 Cleanup (Quick cleanup for existing cards)
+Clears files without reformatting the filesystem.
+
+```bash
+python3 Smart_incubator/format_sd_card.py
+```
+
+**When to use each method:**
+- **Full reformat**: New cards, corrupted filesystems, or complete reset needed
+- **ESP32 cleanup**: Quick data wipe between experiments on working cards
+
+📘 **For detailed instructions and troubleshooting, see [SD_CARD_FORMATTING_GUIDE.md](SD_CARD_FORMATTING_GUIDE.md)**
+
+---
 
 The Smart Incubator includes sophisticated deployment automation:
 
@@ -322,13 +369,9 @@ Traditional deployment script for specific scenarios:
 ### Installation Steps
 
 1. **Format SD Card:**
-   ```bash
-   # macOS:
-   sudo diskutil eraseDisk MS-DOS INCUBATOR MBR /dev/diskX
-   
-   # Linux:
-   sudo mkfs.fat -F 32 /dev/sdX1
-   ```
+   See the **SD Card Formatting** section above for complete instructions.
+   - For new cards: Use full local reformat method
+   - For existing cards: Use ESP32 cleanup method
 
 2. **Upload Firmware:**
    Upload all `.py` files from `Firmware/` to ESP32 root directory using Thonny or ampy:

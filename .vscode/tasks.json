@@ -5,7 +5,13 @@
       "label": "Smart Incubator: Sync Firmware (Auto)",
       "type": "shell",
       "command": "python3",
-      "args": ["${workspaceFolder}/Smart_incubator/sync_firmware.py"],
+      "args": ["${workspaceFolder}/Smart_incubator/sync_firmware.py", "--yes"],
+      "options": {
+        "cwd": "${workspaceFolder}",
+        "env": {
+          "SYNC_AUTO_YES": "1"
+        }
+      },
       "group": {
         "kind": "build",
         "isDefault": true

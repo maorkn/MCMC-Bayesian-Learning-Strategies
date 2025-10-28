@@ -33,7 +33,7 @@ min_interval = 200      # minutes (not seconds!)
 max_interval = 400      # minutes (not seconds!)
 us_duration = 30     # 30 seconds = 0.5 minutes
 heat_duration = 30     # 2 minutes - increased for testing to see temp change
-correlation = 0       # US precedes heat shock at end of cycle
+correlation = 1       # US precedes heat shock at end of cycle
 
 def init_output_pins():
     """Initialize all output pins with PWM."""

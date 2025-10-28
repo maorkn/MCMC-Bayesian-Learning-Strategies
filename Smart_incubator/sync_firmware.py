@@ -155,7 +155,10 @@ def upload_safe_boot(port: str) -> bool:
         print("⚠️  Could not upload safe boot automatically.")
         print("   Please press the EN (reset) button on the ESP32, wait 2-3 seconds, then press Enter.")
         print("="*60)
-        input("\nPress Enter after reset: ")
+        if ("--yes" in sys.argv) or (os.getenv("SYNC_AUTO_YES") == "1"):
+            print("AUTO_YES: skipping interactive wait and retrying upload")
+        else:
+            input("\nPress Enter after reset: ")
         res = run_cmd(["mpremote", "connect", port, "cp", temp_path, ":/boot.py"], timeout=10, quiet=True)
         if res.returncode == 0:
             print("  ✅ Safe boot.py uploaded after manual reset")
@@ -299,10 +302,14 @@ def full_redeploy(port: str):
     print("="*60)
 
     # Confirm
-    resp = input("\nProceed with FULL redeploy? [Y/n]: ").strip().lower()
-    if resp and resp != "y":
-        print("❌ Redeploy cancelled")
-        sys.exit(0)
+    AUTO_YES = ("--yes" in sys.argv) or (os.getenv("SYNC_AUTO_YES") == "1")
+    if AUTO_YES:
+        print("Auto-confirmed full redeploy (--yes or SYNC_AUTO_YES=1)")
+    else:
+        resp = input("\nProceed with FULL redeploy? [Y/n]: ").strip().lower()
+        if resp and resp != "y":
+            print("❌ Redeploy cancelled")
+            sys.exit(0)
 
     # Step 1: Ensure no autorun by handling boot.py
     has_boot = device_has_boot(port)
@@ -311,13 +318,19 @@ def full_redeploy(port: str):
         if not upload_safe_boot(port):
             print("\n⚠️ Could not install safe boot automatically.")
             print("   If the device is busy, delete boot.py on the device, then press Enter to continue.")
-            input("Press Enter after deleting boot.py and resetting the device: ")
+            if ("--yes" in sys.argv) or (os.getenv("SYNC_AUTO_YES") == "1"):
+                print("AUTO_YES: skipping interactive wait; continuing")
+            else:
+                input("Press Enter after deleting boot.py and resetting the device: ")
     elif has_boot is False:
         print("\nℹ️ boot.py not present on device; skipping safe boot step")
     else:
         print("\n⚠️ Could not determine device files (device may be busy).")
         print("   Delete boot.py on the device, then press Enter to continue.")
-        input("Press Enter after deleting boot.py and resetting the device: ")
+        if ("--yes" in sys.argv) or (os.getenv("SYNC_AUTO_YES") == "1"):
+            print("AUTO_YES: skipping interactive wait; continuing")
+        else:
+            input("Press Enter after deleting boot.py and resetting the device: ")
 
     # Step 2: Reset to load safe boot
     print("\n🔄 Resetting device to enter safe mode...")
