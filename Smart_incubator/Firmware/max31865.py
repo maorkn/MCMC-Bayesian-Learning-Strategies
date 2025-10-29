@@ -27,12 +27,76 @@ MAX_TEMP_CHANGE = 5.0  # Maximum allowed temp change per reading (°C)
 MEDIAN_FILTER_SIZE = 5  # Number of readings for median filter
 MAX_READ_RETRIES = 3   # Maximum retries for each reading
 
+# ---- WARNING RATE LIMITING ----
+WARNING_LOG_INTERVAL_MS = 5000  # Minimum interval between repeated register warnings
+_register_warning_state = {}
+
 # ---- GLOBAL VARIABLES ----
 spi = None
 cs = None
 cs_sd = None
 last_valid_temp = None
 temp_history = []  # Store recent temperatures for median filtering
+consecutive_invalid_reads = 0
+INVALID_READ_THRESHOLD = 5
+reset_in_progress = False
+
+
+def _ticks_ms():
+    """Return milliseconds using ticks when available (MicroPython-friendly)."""
+    try:
+        return time.ticks_ms()
+    except AttributeError:
+        return int(time.time() * 1000)
+
+
+def _log_register_warning(reg, value):
+    """Rate-limit noisy register warnings while preserving diagnostics."""
+    now = _ticks_ms()
+    state = _register_warning_state.get(reg)
+    if state is None:
+        print(f"[MAX31865] Warning: Register {hex(reg)} returned {hex(value)}")
+        _register_warning_state[reg] = {"last": now, "suppressed": 0}
+        return
+
+    last = state.get("last", 0)
+    suppressed = state.get("suppressed", 0)
+    try:
+        elapsed = time.ticks_diff(now, last)  # type: ignore[attr-defined]
+    except AttributeError:
+        elapsed = now - last
+
+    if elapsed >= WARNING_LOG_INTERVAL_MS:
+        if suppressed:
+            print(
+                f"[MAX31865] Warning: Register {hex(reg)} returned {hex(value)} "
+                f"(suppressed {suppressed} repeats)"
+            )
+        else:
+            print(f"[MAX31865] Warning: Register {hex(reg)} returned {hex(value)}")
+        _register_warning_state[reg] = {"last": now, "suppressed": 0}
+    else:
+        state["suppressed"] = suppressed + 1
+        _register_warning_state[reg] = state
+
+
+def _record_register_recovery(reg):
+    """Log how many warnings were suppressed once the register recovers."""
+    state = _register_warning_state.pop(reg, None)
+    if state and state.get("suppressed"):
+        print(
+            f"[MAX31865] Register {hex(reg)} recovered "
+            f"(suppressed {state['suppressed']} repeats)"
+        )
+
+
+def _flush_register_warning_counters():
+    """Flush all register warning suppression counters."""
+    if not _register_warning_state:
+        return
+    for reg in list(_register_warning_state.keys()):
+        _record_register_recovery(reg)
+
 
 def init_spi():
     """Initialize the SPI bus for MAX31865."""
@@ -76,12 +140,64 @@ def read_register(reg):
     cs.value(1)
     value = int.from_bytes(result, 'big')
     
-    # Debug output for troubleshooting
+    # Debug output for troubleshooting with rate limiting
     if reg == RTD_MSB_REG or reg == RTD_LSB_REG:
         if value == 0xFF or value == 0x00:
-            print(f"[MAX31865] Warning: Register {hex(reg)} returned {hex(value)}")
+            _log_register_warning(reg, value)
+        else:
+            _record_register_recovery(reg)
     
     return value
+
+
+def _reset_invalid_read_counter():
+    """Reset the consecutive invalid read counter."""
+    global consecutive_invalid_reads
+    consecutive_invalid_reads = 0
+    _flush_register_warning_counters()
+
+
+def _register_invalid_read(reason):
+    """Track invalid reads and trigger recovery if threshold exceeded."""
+    global consecutive_invalid_reads
+    consecutive_invalid_reads += 1
+    if consecutive_invalid_reads >= INVALID_READ_THRESHOLD:
+        _soft_reset_sensor(reason)
+
+
+def _soft_reset_sensor(trigger_reason):
+    """Attempt automatic sensor recovery after repeated invalid reads."""
+    global reset_in_progress
+    if reset_in_progress:
+        return
+
+    reset_in_progress = True
+    try:
+        print(f"[MAX31865] Auto-recovery triggered ({trigger_reason})")
+        # Ensure SPI is up before attempting recovery
+        init_spi()
+
+        try:
+            # Clear configuration to power-cycle bias
+            write_register(CONFIG_REG, 0x00)
+            time.sleep_ms(50)
+        except Exception as e:
+            print(f"[MAX31865] Auto-recovery warning: failed to clear config ({e})")
+
+        try:
+            # Reapply standard configuration
+            write_register(CONFIG_REG, 0xC3)
+            time.sleep_ms(100)
+            config = read_register(CONFIG_REG)
+            print(f"[MAX31865] Auto-recovery config readback: 0x{config:02X}")
+        except Exception as e:
+            print(f"[MAX31865] Auto-recovery warning: failed to restore config ({e})")
+
+    except Exception as e:
+        print(f"[MAX31865] Auto-recovery failed: {e}")
+    finally:
+        _reset_invalid_read_counter()
+        reset_in_progress = False
 
 def check_fault():
     """Check MAX31865 fault register and return fault status."""
@@ -141,6 +257,7 @@ def read_temperature_raw():
         if lsb & 0x01:
             fault = check_fault()
             print(f"[MAX31865] Fault bit set, fault status: {fault}")
+            _register_invalid_read(f"fault:{fault if fault else 'unknown'}")
             return None
         
         raw = ((msb << 8) | lsb) >> 1
@@ -148,6 +265,8 @@ def read_temperature_raw():
         # Validate raw value
         if raw == 0 or raw == 0x7FFF:
             print(f"[MAX31865] Invalid raw reading: {raw}")
+            reason = "raw_zero" if raw == 0 else "raw_max"
+            _register_invalid_read(reason)
             return None
         
         # Calculate resistance
@@ -156,6 +275,7 @@ def read_temperature_raw():
         # Validate resistance (PT100 should be ~100Ω at 0°C, ~138.5Ω at 100°C)
         if resistance < 50 or resistance > 200:
             print(f"[MAX31865] Invalid resistance: {resistance}Ω")
+            _register_invalid_read("resistance_out_of_range")
             return None
         
         # Convert resistance to temperature
@@ -168,12 +288,15 @@ def read_temperature_raw():
         # Final temperature validation
         if temp < -50 or temp > 150:
             print(f"[MAX31865] Temperature out of range: {temp}°C")
+            _register_invalid_read("temp_out_of_range")
             return None
-        
+
+        _reset_invalid_read_counter()
         return round(temp, 2)
         
     except Exception as e:
         print(f"[MAX31865] Error reading temperature: {e}")
+        _register_invalid_read(f"exception:{type(e).__name__}")
         return None
 
 def read_temperature():
@@ -225,6 +348,7 @@ def init_max31865():
     # Reset filtering variables
     last_valid_temp = None
     temp_history = []
+    _reset_invalid_read_counter()
     
     # Configure MAX31865 with 0xC3 (3-wire RTD, 60Hz filter, bias on)
     print("[MAX31865] Writing configuration 0xC3...")

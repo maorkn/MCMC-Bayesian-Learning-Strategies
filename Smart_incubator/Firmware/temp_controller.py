@@ -94,6 +94,22 @@ class TempController:
             if current_temp is None:
                 self.temp_read_errors += 1
                 print(f"[ERROR] Failed to get valid temperature after 3 attempts (errors: {self.temp_read_errors}/{self.max_temp_errors})")
+
+                # Attempt automated sensor recovery before falling back
+                recovery_manager = getattr(self.failsafe, 'recovery_manager', None)
+                if recovery_manager and self.temp_read_errors >= 3 and recovery_manager.can_attempt_recovery():
+                    print("[RECOVERY] Initiating sensor recovery due to consecutive read failures")
+                    success, recovered_temp, recovery_message = recovery_manager.attempt_sensor_recovery(
+                        stuck_temp=self.last_valid_temp,
+                        error_type="none_readings"
+                    )
+                    print(f"[RECOVERY] {recovery_message}")
+
+                    if success and recovered_temp is not None:
+                        current_temp = recovered_temp
+                        self.last_valid_temp = current_temp
+                        self.temp_read_errors = 0
+                        print("[RECOVERY] Sensor recovery succeeded, resuming control loop")
                 
                 if self.last_valid_temp is not None and self.temp_read_errors < self.max_temp_errors:
                     print(f"[WARNING] Using last valid temperature: {self.last_valid_temp:.1f}°C")

@@ -2,15 +2,17 @@
   "version": "2.0.0",
   "tasks": [
     {
-      "label": "Smart Incubator: Sync Firmware (Auto)",
+      "label": "Smart Incubator: Sync Firmware (Full Redeploy)",
       "type": "shell",
-      "command": "python3",
-      "args": ["${workspaceFolder}/Smart_incubator/sync_firmware.py", "--yes"],
+      "command": "python",
+      "args": [
+        "Smart_incubator/sync_firmware.py",
+        "--yes",
+        "--correlation",
+        "${input:correlationMode}"
+      ],
       "options": {
-        "cwd": "${workspaceFolder}",
-        "env": {
-          "SYNC_AUTO_YES": "1"
-        }
+        "cwd": "${workspaceFolder}"
       },
       "group": {
         "kind": "build",
@@ -171,6 +173,22 @@
       "type": "promptString",
       "description": "Config filename on SD card (e.g., experiment.json)",
       "default": "experiment.json"
+    },
+    {
+      "id": "correlationMode",
+      "type": "pickString",
+      "description": "Select correlation value to embed before flashing",
+      "options": [
+        {
+          "label": "Correlation 1 – US precedes heat shock (learning)",
+          "value": "1"
+        },
+        {
+          "label": "Correlation 0 – Random (control)",
+          "value": "0"
+        }
+      ],
+      "default": "1"
     }
   ]
 }
