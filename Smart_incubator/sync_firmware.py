@@ -14,8 +14,13 @@ restore the real boot.py, then reset again.
 """
 
 import os
+import argparse
 import hashlib
+import importlib.util
 import json
+import re
+import shlex
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -39,6 +44,20 @@ SKIP_FILES = {
     "README.md"
 }
 
+# CLI / runtime configuration (populated in main)
+AUTO_YES = os.getenv("SYNC_AUTO_YES") == "1"
+CORRELATION_OVERRIDE: Optional[int] = None
+_CORRELATION_NOTICE_EMITTED = False
+
+def _apply_correlation_override(source_text: str, correlation_value: int) -> Optional[str]:
+    """Return source with the first correlation assignment replaced."""
+    pattern = re.compile(r"^(\s*correlation\s*=\s*)([0-9]+)", re.MULTILINE)
+    new_text, replacements = pattern.subn(r"\g<1>{}".format(correlation_value), source_text, count=1)
+    if replacements == 0:
+        return None
+    return new_text
+
+
 # =========================
 # Utilities / Requirements
 # =========================
@@ -60,13 +79,37 @@ def load_requirements() -> List[str]:
 REQUIRED_PACKAGES = load_requirements()
 
 def get_port() -> Optional[str]:
-    """Auto-detect ESP32 port"""
+    """Auto-detect ESP32 port, honouring environment override."""
+    env_port = os.getenv("INCUBATOR_PORT") or os.getenv("ESP32_PORT")
+    if env_port:
+        return env_port
+
+    if os.name == "nt":
+        try:
+            result = subprocess.run(
+                [
+                    "powershell",
+                    "-NoProfile",
+                    "-Command",
+                    "[System.IO.Ports.SerialPort]::GetPortNames() | Sort-Object"
+                ],
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+            ports = [line.strip() for line in (result.stdout or "").splitlines() if line.strip()]
+            if ports:
+                return ports[0]
+        except Exception:
+            pass
+        return None
+
     patterns = [
         "/dev/tty.usbserial*",
         "/dev/tty.SLAB_USBtoUART",
         "/dev/ttyUSB*"
     ]
-    
+
     for pattern in patterns:
         result = subprocess.run(
             f"ls {pattern} 2>/dev/null || true",
@@ -76,7 +119,7 @@ def get_port() -> Optional[str]:
         )
         if result.stdout.strip():
             return result.stdout.strip().split('\n')[0]
-    
+
     return None
 
 def run_cmd(cmd: List[str], timeout: int = 8, quiet: bool = False) -> subprocess.CompletedProcess:
@@ -88,21 +131,89 @@ def run_cmd(cmd: List[str], timeout: int = 8, quiet: bool = False) -> subprocess
         if not quiet and result.stderr.strip():
             print(result.stderr.strip())
         return result
-    except subprocess.TimeoutExpired as e:
-        cp = subprocess.CompletedProcess(cmd, returncode=124, stdout="", stderr="TIMEOUT")
-        return cp
-    except Exception as e:
-        cp = subprocess.CompletedProcess(cmd, returncode=1, stdout="", stderr=str(e))
-        return cp
+    except subprocess.TimeoutExpired:
+        return subprocess.CompletedProcess(cmd, returncode=124, stdout="", stderr="TIMEOUT")
+    except Exception as exc:
+        return subprocess.CompletedProcess(cmd, returncode=1, stdout="", stderr=str(exc))
+
+
+def _test_mpremote_command(base_cmd: List[str]) -> bool:
+    """Return True if mpremote command appears functional."""
+    try:
+        result = subprocess.run([*base_cmd, "--help"], capture_output=True, text=True, timeout=5)
+        if result.returncode == 0:
+            return True
+    except Exception:
+        pass
+    return False
+
+
+def _resolve_mpremote_base() -> List[str]:
+    """Discover a working mpremote command invocation."""
+    env_cmd = os.getenv("MPREMOTE")
+    if env_cmd:
+        candidate = shlex.split(env_cmd)
+        if _test_mpremote_command(candidate):
+            return candidate
+        raise RuntimeError(f"MPREMOTE override is invalid: {' '.join(candidate)}")
+
+    candidates: List[List[str]] = []
+
+    direct_exe = shutil.which("mpremote")
+    if direct_exe:
+        candidates.append([direct_exe])
+
+    if importlib.util.find_spec("mpremote") is not None:
+        candidates.append([sys.executable, "-m", "mpremote"])
+
+    if os.name == "nt":
+        py_launcher = shutil.which("py")
+        if py_launcher:
+            candidates.append([py_launcher, "-m", "mpremote"])
+            for minor in ("3.12", "3.11", "3.10"):
+                candidates.append([py_launcher, f"-{minor}", "-m", "mpremote"])
+
+    for launcher in ("python3", "python"):
+        exe = shutil.which(launcher)
+        if exe and exe != sys.executable:
+            candidates.append([exe, "-m", "mpremote"])
+
+    seen = set()
+    unique_candidates: List[List[str]] = []
+    for base_cmd in candidates:
+        key = tuple(base_cmd)
+        if key in seen:
+            continue
+        seen.add(key)
+        unique_candidates.append(base_cmd)
+
+    for base_cmd in unique_candidates:
+        if _test_mpremote_command(base_cmd):
+            return base_cmd
+
+    raise RuntimeError(
+        "Could not locate a working mpremote command. Install mpremote or set the MPREMOTE environment variable."
+    )
+
+
+def mpremote_cmd(*args: str) -> List[str]:
+    """Return a cross-platform mpremote command list."""
+    cached = getattr(mpremote_cmd, "_cached_cmd", None)
+    if cached is None:
+        cached = _resolve_mpremote_base()
+        mpremote_cmd._cached_cmd = cached
+        print(f"ℹ️ Using mpremote command: {' '.join(cached)}")
+    return [*cached, *args]
+
 
 def reset_device(port: str, wait_sec: float = 2.0):
     """Send a reset to the device and wait a bit."""
-    run_cmd(["mpremote", "connect", port, "reset"], timeout=5, quiet=True)
+    run_cmd(mpremote_cmd("connect", port, "reset"), timeout=5, quiet=True)
     time.sleep(wait_sec)
 
 def device_has_boot(port: str) -> Optional[bool]:
     """Return True if boot.py exists on device, False if not, None if unknown (timeout/error)."""
-    res = run_cmd(["mpremote", "connect", port, "ls"], timeout=5, quiet=True)
+    res = run_cmd(mpremote_cmd("connect", port, "ls"), timeout=5, quiet=True)
     if res.returncode == 0:
         out = (res.stdout or "")
         return "boot.py" in out
@@ -135,6 +246,7 @@ print("Boot complete. Skipping main.py for deployment.")
 
 def upload_safe_boot(port: str) -> bool:
     """Upload a temporary safe boot.py that never auto-runs main."""
+    global AUTO_YES
     print("📝 Creating and uploading safe boot.py...")
     with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as tf:
         tf.write(SAFE_BOOT_CONTENT)
@@ -142,7 +254,7 @@ def upload_safe_boot(port: str) -> bool:
     try:
         for attempt in range(1, 4):
             print(f"  📤 Upload attempt {attempt}...")
-            res = run_cmd(["mpremote", "connect", port, "cp", temp_path, ":/boot.py"], timeout=10, quiet=True)
+            res = run_cmd(mpremote_cmd("connect", port, "cp", temp_path, ":/boot.py"), timeout=10, quiet=True)
             if res.returncode == 0:
                 print("  ✅ Safe boot.py uploaded")
                 return True
@@ -155,11 +267,11 @@ def upload_safe_boot(port: str) -> bool:
         print("⚠️  Could not upload safe boot automatically.")
         print("   Please press the EN (reset) button on the ESP32, wait 2-3 seconds, then press Enter.")
         print("="*60)
-        if ("--yes" in sys.argv) or (os.getenv("SYNC_AUTO_YES") == "1"):
-            print("AUTO_YES: skipping interactive wait and retrying upload")
+        if AUTO_YES:
+            print("AUTO_YES enabled: skipping interactive wait and retrying upload")
         else:
             input("\nPress Enter after reset: ")
-        res = run_cmd(["mpremote", "connect", port, "cp", temp_path, ":/boot.py"], timeout=10, quiet=True)
+        res = run_cmd(mpremote_cmd("connect", port, "cp", temp_path, ":/boot.py"), timeout=10, quiet=True)
         if res.returncode == 0:
             print("  ✅ Safe boot.py uploaded after manual reset")
             return True
@@ -179,34 +291,67 @@ def wipe_device_files(port: str):
     """Remove all Python files from root (except boot.py) and selected files from /sd."""
     print("\n🧹 Wiping device files (root and /sd)...")
     # Remove .py/.mpy on root (except boot.py)
-    cmd_root = [
-        "mpremote", "connect", port, "exec",
+    cmd_root = mpremote_cmd(
+        "connect", port, "exec",
         "import os; "
         "[os.remove('/'+f) for f in os.listdir('/') "
         " if (f.endswith('.py') or f.endswith('.mpy')) and f!='boot.py' and not f.startswith('.')]; "
         "print('OK')"
-    ]
+    )
     res_root = run_cmd(cmd_root, timeout=8, quiet=True)
     if res_root.returncode != 0:
         print("  ⚠️  Root wipe may have partially failed")
 
     # Clean /sd configs/data (json/txt/log)
-    cmd_sd = [
-        "mpremote", "connect", port, "exec",
+    cmd_sd = mpremote_cmd(
+        "connect", port, "exec",
         "import os; "
         "exists=('sd' in os.listdir('/')); "
         "print('NO_SD') if not exists else [os.remove('/sd/'+f) for f in os.listdir('/sd') "
         " if (f.endswith('.json') or f.endswith('.txt') or f.endswith('.log')) and not f.startswith('.')]; "
         "print('OK')"
-    ]
+    )
     res_sd = run_cmd(cmd_sd, timeout=8, quiet=True)
     if res_sd.returncode != 0:
         print("  ⚠️  /sd wipe may have partially failed")
 
 def upload_file(port: str, local_path: Path, remote_path: str) -> bool:
     """Upload single file to ESP32"""
+    global CORRELATION_OVERRIDE, _CORRELATION_NOTICE_EMITTED
+
     print(f"  📤 {local_path} → {remote_path}")
-    result = run_cmd(["mpremote", "connect", port, "cp", str(local_path), f":{remote_path}"], timeout=15, quiet=True)
+
+    source_path = str(local_path)
+    temp_path = None
+
+    if CORRELATION_OVERRIDE is not None and local_path.name == "main.py":
+        try:
+            patched_content = _apply_correlation_override(local_path.read_text(), CORRELATION_OVERRIDE)
+            if patched_content is None:
+                if not _CORRELATION_NOTICE_EMITTED:
+                    print("    ⚠️  Correlation override requested but no 'correlation =' assignment found in main.py")
+                    _CORRELATION_NOTICE_EMITTED = True
+            else:
+                temp_file = tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False)
+                temp_file.write(patched_content)
+                temp_file.flush()
+                temp_file.close()
+                temp_path = temp_file.name
+                source_path = temp_path
+                if not _CORRELATION_NOTICE_EMITTED:
+                    print(f"    🔁 Patched correlation to {CORRELATION_OVERRIDE} for upload")
+                    _CORRELATION_NOTICE_EMITTED = True
+        except Exception as exc:
+            print(f"    ⚠️  Failed to apply correlation override: {exc}")
+
+    result = run_cmd(mpremote_cmd("connect", port, "cp", source_path, f":{remote_path}"), timeout=15, quiet=True)
+
+    if temp_path:
+        try:
+            Path(temp_path).unlink()
+        except Exception:
+            pass
+
     if result.returncode != 0:
         print(f"    ⚠️  Warning: {result.stderr.strip() or result.stdout.strip()}")
         return False
@@ -225,7 +370,7 @@ def install_micropython_packages(port: str):
     print(f"\n📦 Installing {len(REQUIRED_PACKAGES)} MicroPython package(s)...")
     for package in REQUIRED_PACKAGES:
         print(f"  📥 Installing {package}...")
-        result = run_cmd(["mpremote", "connect", port, "mip", "install", package], timeout=60, quiet=True)
+        result = run_cmd(mpremote_cmd("connect", port, "mip", "install", package), timeout=60, quiet=True)
         if result.returncode != 0:
             print(f"    ⚠️  Failed to install {package}: {result.stderr.strip() or result.stdout.strip()}")
         else:
@@ -237,11 +382,13 @@ def create_sd_directories(port: str):
     directories = ["/sd", "/sd/data", "/sd/data/markovian_experiments"]
     for directory in directories:
         print(f"  📁 Ensuring {directory} exists...")
-        cmd = ["mpremote", "connect", port, "exec", 
-               f"import os; "
-               f"exists=('sd' in os.listdir('/')) if '{directory}'.startswith('/sd') else True; "
-               f"os.makedirs('{directory}') if exists and '{directory}' not in str(os.listdir('/')) else None; "
-               "print('OK')"]
+        cmd = mpremote_cmd(
+            "connect", port, "exec",
+            f"import os; "
+            f"exists=('sd' in os.listdir('/')) if '{directory}'.startswith('/sd') else True; "
+            f"os.makedirs('{directory}') if exists and '{directory}' not in str(os.listdir('/')) else None; "
+            "print('OK')"
+        )
         res = run_cmd(cmd, timeout=8, quiet=True)
         if res.returncode != 0 and "EEXIST" not in (res.stderr or ""):
             print(f"    ℹ️  Directory may already exist or SD card not present")
@@ -281,12 +428,27 @@ def check_firmware_exists() -> bool:
         return False
     return True
 
+
+# =========================
+# CLI handling
+# =========================
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(description="Smart Incubator firmware redeploy tool")
+    parser.add_argument("--yes", action="store_true", help="Skip confirmation and interactive prompts")
+    parser.add_argument("--correlation", type=int, choices=[0, 1], help="Override correlation value in main.py (0 or 1)")
+    parser.add_argument("--port", help="Explicit serial port to use (overrides auto-detect)")
+    parser.add_argument("--force", "-f", "--reset", dest="force", action="store_true", help=argparse.SUPPRESS)
+    return parser.parse_args()
+
 # =========================
 # Full redeploy flow
 # =========================
 
 def full_redeploy(port: str):
     """Perform a full redeploy every time (safe boot, wipe, upload all, restore, reset)."""
+    global AUTO_YES, CORRELATION_OVERRIDE
     print("\n" + "="*60)
     print("🧼 FULL REDEPLOY")
     print("="*60)
@@ -301,8 +463,10 @@ def full_redeploy(port: str):
     print("  8. Reset to start normal operation")
     print("="*60)
 
+    if CORRELATION_OVERRIDE is not None:
+        print(f"\n🔁 Correlation override active: main.py will be patched to {CORRELATION_OVERRIDE}")
+
     # Confirm
-    AUTO_YES = ("--yes" in sys.argv) or (os.getenv("SYNC_AUTO_YES") == "1")
     if AUTO_YES:
         print("Auto-confirmed full redeploy (--yes or SYNC_AUTO_YES=1)")
     else:
@@ -318,8 +482,8 @@ def full_redeploy(port: str):
         if not upload_safe_boot(port):
             print("\n⚠️ Could not install safe boot automatically.")
             print("   If the device is busy, delete boot.py on the device, then press Enter to continue.")
-            if ("--yes" in sys.argv) or (os.getenv("SYNC_AUTO_YES") == "1"):
-                print("AUTO_YES: skipping interactive wait; continuing")
+            if AUTO_YES:
+                print("AUTO_YES enabled: skipping interactive wait; continuing")
             else:
                 input("Press Enter after deleting boot.py and resetting the device: ")
     elif has_boot is False:
@@ -327,8 +491,8 @@ def full_redeploy(port: str):
     else:
         print("\n⚠️ Could not determine device files (device may be busy).")
         print("   Delete boot.py on the device, then press Enter to continue.")
-        if ("--yes" in sys.argv) or (os.getenv("SYNC_AUTO_YES") == "1"):
-            print("AUTO_YES: skipping interactive wait; continuing")
+        if AUTO_YES:
+            print("AUTO_YES enabled: skipping interactive wait; continuing")
         else:
             input("Press Enter after deleting boot.py and resetting the device: ")
 
@@ -409,24 +573,32 @@ def full_redeploy(port: str):
 # =========================
 
 def main():
+    global AUTO_YES, CORRELATION_OVERRIDE
+
+    args = parse_args()
+    AUTO_YES = AUTO_YES or args.yes
+    if args.correlation is not None:
+        CORRELATION_OVERRIDE = args.correlation
+
     print("🔧 Smart Incubator Firmware Sync (Full Redeploy Mode)")
     print("=" * 40)
 
-    # Auto-detect port
-    port = get_port()
+    port = args.port or get_port()
     if not port:
         print("❌ Error: ESP32 not found")
-        print("\nManual usage: mpremote connect /dev/tty.YOUR_PORT cp file.py :/")
+        print("\nHint: specify --port COMx (Windows) or --port /dev/ttyUSB0 (Unix) if auto-detect fails")
         sys.exit(1)
 
-    print(f"✅ Found device: {port}\n")
+    print(f"✅ Using device: {port}\n")
 
     # Always perform full redeploy (simple and robust)
-    full_redeploy(port)
+    try:
+        full_redeploy(port)
+    except RuntimeError as exc:
+        print(f"\n❌ Deployment aborted: {exc}")
+        print("Hint: install mpremote (pip install mpremote) or set MPREMOTE to the full command.")
+        sys.exit(1)
+
 
 if __name__ == "__main__":
-    # Optional: support a force flag (ignored currently since full redeploy is default)
-    if len(sys.argv) > 1 and sys.argv[1] in ["--force", "-f", "--reset"]:
-        # full redeploy already implies force
-        pass
     main()

@@ -254,20 +254,26 @@ The platform emphasizes:
 
 ```bash
 # 1️⃣ First time setup (blank ESP32)
-python3 Smart_incubator/sync_firmware.py
+python Smart_incubator/sync_firmware.py --correlation 1 --yes
 
-# 2️⃣ Deploy changes (auto-detects modified files)
-python3 Smart_incubator/sync_firmware.py
+# 2️⃣ Redeploy with alternate correlation (control runs)
+python Smart_incubator/sync_firmware.py --correlation 0 --yes
+
+# (Windows example if auto-detect misses COM port)
+python Smart_incubator/sync_firmware.py --correlation 1 --yes --port COM3
 
 # 3️⃣ Format SD card - see SD Card Formatting section below
 
 # 4️⃣ Or use VS Code (even easier!)
-# Press Cmd+Shift+B to deploy
-# Press Cmd+Shift+P → "Tasks: Run Task" → choose task
+# Press Ctrl+Shift+B to deploy (pick correlation in the prompt)
+# Press Ctrl+Shift+P → "Tasks: Run Task" → choose task
 ```
 
+> 💡 Set `INCUBATOR_PORT=COM3` (Windows) or `ESP32_PORT=/dev/ttyUSB0` (Linux/macOS) to skip `--port` each time.
+> ℹ️ `sync_firmware.py` auto-detects `mpremote` (`mpremote`, `py -m mpremote`, `python -m mpremote`, etc.) and prints the command it will use. Set `MPREMOTE="path/to/mpremote"` if you need a custom executable.
+
 **Available VS Code Tasks:**
-- **Sync Firmware (Auto)** - Smart deployment (default: `Cmd+Shift+B`)
+- **Sync Firmware (Full Redeploy)** - Safe redeploy with correlation picker (default: `Ctrl+Shift+B`)
 - **Format SD Card** - Clean SD card for new experiments
 - **Deploy Core HES Modules** - Upload only HES system files
 - **Deploy Full Firmware** - Upload all firmware files
@@ -329,12 +335,14 @@ python3 Smart_incubator/format_sd_card.py
 
 The Smart Incubator includes sophisticated deployment automation:
 
-#### 1. **Intelligent Sync** (`sync_firmware.py`)
-Auto-detects changes and uploads only modified files:
-- First run: Installs packages, creates directories, uploads everything
-- Subsequent runs: Only syncs changed files (much faster!)
-- Force reinstall: `--force` flag
-- Auto-detects ESP32 port
+#### 1. **Full Redeploy Sync** (`sync_firmware.py`)
+Safe, repeatable firmware deployment every time:
+- Installs a temporary safe boot, wipes the device, and re-uploads all firmware
+- Automatically reconfigures the SD card structure and required packages
+- Optional `--correlation 0|1` flag rewrites `main.py` before upload so you never edit by hand
+- `--yes` (or the VS Code task) skips prompts for unattended reflashes
+- Auto-detects the ESP32 port, with `--port` override when needed
+- Validates the `mpremote` command before flashing and falls back through multiple launchers; override with `MPREMOTE` if your setup is non-standard
 
 #### 2. **SD Card Formatter** (`format_sd_card.py`)
 Prepares SD card with proper structure:
