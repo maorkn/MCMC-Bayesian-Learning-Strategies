@@ -30,41 +30,56 @@ def run_experiment_cycle(
     print("\nInput Parameters:")
     print(f"min_interval: {min_interval} minutes")
     print(f"max_interval: {max_interval} minutes")
-    print(f"us_duration: {us_duration} minutes")
-    print(f"heat_duration: {heat_duration} minutes")
+    print(f"us_duration: {us_duration} seconds")
+    print(f"heat_duration: {heat_duration} seconds")
     
     # Calculate cycle parameters
-    cycle_length = urandom.randint(min_interval, max_interval)
-    
-    # Calculate US and heat start times based on correlation
+    cycle_length_minutes = urandom.randint(min_interval, max_interval)
+    cycle_length_seconds = cycle_length_minutes * 60
+
+    # Ensure durations are positive whole seconds
+    us_duration_seconds = max(1, int(us_duration))
+    heat_duration_seconds = max(1, int(heat_duration))
+
+    # Calculate US and heat start times based on correlation (all in seconds)
     if correlation == 0:
-        # Correlation 0: Completely random US and heat shock
-        heat_start = urandom.randint(0, cycle_length - heat_duration)
-        us_start = urandom.randint(0, cycle_length - us_duration)
+        # Correlation 0: Completely random US and heat shock (independent)
+        max_heat_start = max(0, cycle_length_seconds - heat_duration_seconds)
+        max_us_start = max(0, cycle_length_seconds - us_duration_seconds)
+        heat_start_seconds = urandom.randint(0, max_heat_start)
+        us_start_seconds = urandom.randint(0, max_us_start)
     elif correlation == 1:
         # Correlation 1: US precedes heat shock (at end of cycle)
-        heat_start = cycle_length - heat_duration
-        us_start = heat_start - us_duration
+        heat_start_seconds = max(0, cycle_length_seconds - heat_duration_seconds)
+        us_start_seconds = max(0, heat_start_seconds - us_duration_seconds)
     elif correlation == 2:
         # Correlation 2: US follows heat shock
-        heat_start = cycle_length - heat_duration - us_duration
-        us_start = heat_start + heat_duration
+        heat_start_seconds = max(0, cycle_length_seconds - heat_duration_seconds - us_duration_seconds)
+        us_start_seconds = max(0, min(cycle_length_seconds - us_duration_seconds, heat_start_seconds + heat_duration_seconds))
     elif correlation == 3:
         # Correlation 3: Early stimuli for testing (heat shock at 1 minute, US before)
-        heat_start = 1.0  # Start heat shock at 1 minute
-        us_start = 0.5    # Start US at 30 seconds
+        heat_start_seconds = 60
+        us_start_seconds = max(0, heat_start_seconds - us_duration_seconds)
     else:
         # Default to correlation 1 behavior
-        heat_start = cycle_length - heat_duration
-        us_start = heat_start - us_duration
-    
+        heat_start_seconds = max(0, cycle_length_seconds - heat_duration_seconds)
+        us_start_seconds = max(0, heat_start_seconds - us_duration_seconds)
+
     # Print cycle parameters
+    heat_start_minutes = heat_start_seconds / 60
+    us_start_minutes = us_start_seconds / 60
+    us_duration_minutes = us_duration_seconds / 60
+    heat_duration_minutes = heat_duration_seconds / 60
+    cycle_length_minutes_float = cycle_length_seconds / 60
+
     print("\nCycle Parameters:")
-    print(f"Cycle Length: {cycle_length} minutes")
+    print(f"Cycle Length: {cycle_length_minutes_float:.2f} minutes")
     print(f"US Type: {us_type}")
     print(f"Correlation: {correlation}")
-    print(f"US Start: {us_start} minutes")
-    print(f"Heat Shock Start: {heat_start} minutes")
+    print(f"US Start: {us_start_minutes:.2f} minutes ({us_start_seconds} seconds)")
+    print(f"Heat Shock Start: {heat_start_minutes:.2f} minutes ({heat_start_seconds} seconds)")
+    print(f"US Duration: {us_duration_seconds} seconds ({us_duration_minutes:.2f} minutes)")
+    print(f"Heat Duration: {heat_duration_seconds} seconds ({heat_duration_minutes:.2f} minutes)")
     print(f"Basal Temperature: {basal_temp}°C")
     print(f"Heat Shock Temperature: {heat_shock_temp}°C")
     print(f"Log Interval: {log_interval} seconds")
@@ -74,9 +89,11 @@ def run_experiment_cycle(
     cycle_data = {
         "cycle": cycle_number,
         "start_time": time.time(),
-        "cycle_length": cycle_length,
-        "us_start": us_start,
-        "heat_start": heat_start,
+        "cycle_length_seconds": cycle_length_seconds,
+        "us_start_seconds": us_start_seconds,
+        "heat_start_seconds": heat_start_seconds,
+        "us_duration_seconds": us_duration_seconds,
+        "heat_duration_seconds": heat_duration_seconds,
         "us_type": us_type,
         "correlation": correlation,
         "readings": []
@@ -110,15 +127,16 @@ def run_experiment_cycle(
     gc_interval = 300  # Run garbage collection every 5 minutes
     
     try:
-        while time.time() - start_time < cycle_length * 60:
+        while time.time() - start_time < cycle_length_seconds:
             current_time = time.time()
-            elapsed_minutes = (current_time - start_time) / 60
+            elapsed_seconds = current_time - start_time
+            elapsed_minutes = elapsed_seconds / 60
             
             # Control temperature and get current reading
-            target_temp = heat_shock_temp if elapsed_minutes >= heat_start else basal_temp
+            target_temp = heat_shock_temp if elapsed_seconds >= heat_start_seconds else basal_temp
             
             # Debug output for heat shock
-            if elapsed_minutes >= heat_start and elapsed_minutes < heat_start + 0.02:  # Print once when heat shock starts
+            if elapsed_seconds >= heat_start_seconds and elapsed_seconds < heat_start_seconds + 1:  # Print once when heat shock starts
                 print(f"[DEBUG] Heat shock started at {elapsed_minutes:.2f} minutes")
                 print(f"[DEBUG] Target temp changed from {basal_temp}°C to {heat_shock_temp}°C")
             
@@ -190,7 +208,7 @@ def run_experiment_cycle(
             tec_state = 1 if temp_diff > 0.1 else 0
             
             # Update US state
-            us_active = (elapsed_minutes >= us_start) and (elapsed_minutes < us_start + us_duration)
+            us_active = (elapsed_seconds >= us_start_seconds) and (elapsed_seconds < us_start_seconds + us_duration_seconds)
             if us_active:
                 if not us_currently_active:
                     us_controller.activate(us_type)
@@ -209,7 +227,7 @@ def run_experiment_cycle(
                     current_temp,  # current_temp from controller
                     target_temp,  # set_temp
                     elapsed_minutes,  # elapsed_minutes
-                    cycle_length,  # cycle_length
+                    cycle_length_minutes_float,  # cycle_length in minutes
                     1 if us_active else 0,  # us_active
                     1 if us_type in ["LED", "BOTH"] and us_active else 0,  # led_active
                     1 if us_type in ["VIB", "BOTH"] and us_active else 0,  # vib_active
@@ -238,11 +256,13 @@ def run_experiment_cycle(
                     'set_temp': round(target_temp, 2),
                     'us_active': 1 if us_active else 0,
                     'elapsed_minutes': round(elapsed_minutes, 2),
-                    'cycle_length': cycle_length,
+                    'elapsed_seconds': round(elapsed_seconds, 1),
+                    'cycle_length_minutes': cycle_length_minutes_float,
+                    'cycle_length_seconds': cycle_length_seconds,
                     'mode': mode,
                     'power': round(power, 2),
                     'tec_state': "On" if temp_ctrl.cooler.is_on else "Off",
-                    'phase': "heat_shock" if elapsed_minutes >= heat_start else "basal"
+                    'phase': "heat_shock" if elapsed_seconds >= heat_start_seconds else "basal"
                 }
                 
                 # Log snapshot with error handling
@@ -275,7 +295,7 @@ def run_experiment_cycle(
             
             # Print periodic status update
             if current_time - last_status_time >= status_interval:
-                print(f"[{elapsed_minutes:.1f}/{cycle_length} min] Temp: {current_temp:.1f}°C → {target_temp:.1f}°C | Mode: {mode} | Power: {power:.1f}% | Cycle: {cycle_number}")
+                print(f"[{elapsed_minutes:.1f}/{cycle_length_minutes_float:.1f} min] Temp: {current_temp:.1f}°C → {target_temp:.1f}°C | Mode: {mode} | Power: {power:.1f}% | Cycle: {cycle_number}")
                 last_status_time = current_time
             
             # Periodic garbage collection
@@ -306,9 +326,11 @@ def run_experiment_cycle(
         del cycle_stats['temp_count']
         
         # Add cycle completion data
+        total_duration = time.time() - start_time
         cycle_stats.update({
             'end_time': time.time(),
-            'duration': time.time() - start_time,
+            'duration_seconds': total_duration,
+            'duration_minutes': total_duration / 60,
             'final_temp': last_valid_temp if last_valid_temp is not None else 0,
             'final_power': power,
             'final_mode': mode

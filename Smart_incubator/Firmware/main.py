@@ -31,8 +31,8 @@ heat_shock_temp = 32.0
 us_type = "BOTH"
 min_interval = 200      # minutes (not seconds!)
 max_interval = 400      # minutes (not seconds!)
-us_duration = 30     # 30 seconds = 0.5 minutes
-heat_duration = 30     # 2 minutes - increased for testing to see temp change
+us_duration_seconds = 1800     # US window length in seconds (30 minutes)
+heat_duration_seconds = 1800     # Heat shock duration in seconds (30 minutes)
 correlation = 1       # US precedes heat shock at end of cycle
 
 def init_output_pins():
@@ -147,14 +147,19 @@ def init_system():
         
         # Initialize experiment logger with default name
         print("[System] Initializing experiment logger...")
+        us_duration_minutes = us_duration_seconds / 60.0
+        heat_duration_minutes = heat_duration_seconds / 60.0
+
         experiment_params = {
             'basal_temp': float(basal_temp),
             'heat_shock_temp': float(heat_shock_temp),
             'us_type': str(us_type),
             'min_interval': int(min_interval),
             'max_interval': int(max_interval),
-            'us_duration': int(us_duration),
-            'heat_duration': int(heat_duration),
+            'us_duration': us_duration_minutes,
+            'heat_duration': heat_duration_minutes,
+            'us_duration_seconds': int(us_duration_seconds),
+            'heat_duration_seconds': int(heat_duration_seconds),
             'correlation': int(correlation)
         }
         experiment_logger = ExperimentLogger(experiment_params)
@@ -261,9 +266,9 @@ def main():
                 min_interval=min_interval,
                 max_interval=max_interval,
                 us_type=us_type,
-                us_duration=us_duration,
+                us_duration=us_duration_seconds,
                 correlation=correlation,
-                heat_duration=heat_duration,
+                heat_duration=heat_duration_seconds,
                 basal_temp=basal_temp,
                 heat_shock_temp=heat_shock_temp,
                 log_interval=10,    # Log every 10 seconds
