@@ -103,7 +103,7 @@ def run_experiment_cycle(
     start_time = time.time()
     last_log_time = start_time
     consecutive_invalid_readings = 0
-    max_invalid_readings = 3
+    max_invalid_readings = 10
     last_valid_temp = None
     
     # Initialize cycle statistics
@@ -125,6 +125,8 @@ def run_experiment_cycle(
     sd_card_failed = False  # Track if SD card has failed
     last_gc_time = start_time
     gc_interval = 300  # Run garbage collection every 5 minutes
+    invalid_log_interval = 30  # Throttle invalid sensor logs
+    last_invalid_log_time = start_time - invalid_log_interval
     
     try:
         while time.time() - start_time < cycle_length_seconds:
@@ -148,7 +150,9 @@ def run_experiment_cycle(
             
             # Use the temperature from the controller
             if current_temp is None:
-                print("[ERROR] Temperature controller returned None")
+                if current_time - last_invalid_log_time >= invalid_log_interval:
+                    print("[ERROR] Temperature controller returned None")
+                    last_invalid_log_time = current_time
                 consecutive_invalid_readings += 1
                 cycle_stats['error_count'] += 1
                 
@@ -170,7 +174,9 @@ def run_experiment_cycle(
             else:
                 # Check for invalid temperature readings
                 if current_temp > 100 or current_temp < -50:
-                    print(f"[ERROR] Invalid temperature reading: {current_temp}°C")
+                    if current_time - last_invalid_log_time >= invalid_log_interval:
+                        print(f"[ERROR] Invalid temperature reading: {current_temp}°C")
+                        last_invalid_log_time = current_time
                     fault = check_fault()
                     if fault:
                         print(f"[MAX31865] Fault detected: {fault}")
@@ -247,12 +253,12 @@ def run_experiment_cycle(
                 time.sleep_ms(20)
 
                 # Prepare snapshot data with a fresh, clean reading
-                logged_temp, _, _ = temp_ctrl.control_temp(target_temp)
-                if logged_temp is None:
-                    logged_temp = last_valid_temp # Fallback to last known good temp
+                logged_temp = current_temp if current_temp is not None else last_valid_temp
+                if logged_temp is not None:
+                    logged_temp = round(logged_temp, 2)
 
                 snapshot_data = {
-                    'temp': round(logged_temp, 2) if logged_temp is not None else -99,
+                    'temp': logged_temp if logged_temp is not None else -99,
                     'set_temp': round(target_temp, 2),
                     'us_active': 1 if us_active else 0,
                     'elapsed_minutes': round(elapsed_minutes, 2),

@@ -29,7 +29,7 @@ class PIDController:
 class TempController:
     """Controls temperature using a PID controller, heater, and cooler."""
 
-    def __init__(self, heater_pin, cooler_pin, kp=20.0, ki=0, kd=0):
+    def __init__(self, heater_pin, cooler_pin, kp=20.0, ki=0, kd=0, verbose=False):
         """Initializes the temperature controller."""
         if not init_max31865():
             raise RuntimeError("Failed to initialize temperature sensor")
@@ -42,6 +42,11 @@ class TempController:
         self.temp_read_errors = 0
         self.max_temp_errors = 10  # Increased from 5 to 10 for more robustness
         self.consecutive_success_to_reset = 5  # Reset error counter after this many successful reads
+        self.verbose = verbose
+        self._last_read_error_log = 0
+        self._read_error_log_interval = 10  # seconds between repeated read failure logs
+        self._last_warning_log = 0
+        self._warning_log_interval = 30  # throttle repeated warning messages
         
         # Initialize failsafe system
         self.failsafe = TemperatureFailsafe(
@@ -58,8 +63,9 @@ class TempController:
         """
         try:
             if abs(target_temp - self.last_target) > 2.0:
-                print(f"[DEBUG] Target temp changed significantly: {self.last_target:.1f}°C -> {target_temp:.1f}°C")
-                print(f"[DEBUG] Resetting PID integral to prevent windup")
+                if self.verbose:
+                    print(f"[DEBUG] Target temp changed significantly: {self.last_target:.1f}°C -> {target_temp:.1f}°C")
+                    print(f"[DEBUG] Resetting PID integral to prevent windup")
                 self.pid.integral = 0
                 self.pid.prev_error = 0
                 self.last_target = target_temp
@@ -74,7 +80,8 @@ class TempController:
                         if self.last_valid_temp is not None:
                             temp_change = abs(temp_reading - self.last_valid_temp)
                             if temp_change > 10.0:
-                                print(f"[WARNING] Large temperature change detected: {temp_change:.1f}°C")
+                                if self.verbose:
+                                    print(f"[WARNING] Large temperature change detected: {temp_change:.1f}°C")
                                 if attempt < 2:
                                     time.sleep_ms(100)
                                     continue
@@ -87,13 +94,17 @@ class TempController:
                         if attempt < 2:
                             time.sleep_ms(100)
                 except Exception as e:
-                    print(f"[ERROR] Temperature read attempt {attempt + 1} failed: {e}")
+                    if self.verbose:
+                        print(f"[ERROR] Temperature read attempt {attempt + 1} failed: {e}")
                     if attempt < 2:
                         time.sleep_ms(100)
 
             if current_temp is None:
                 self.temp_read_errors += 1
-                print(f"[ERROR] Failed to get valid temperature after 3 attempts (errors: {self.temp_read_errors}/{self.max_temp_errors})")
+                now = time.time()
+                if now - self._last_read_error_log >= self._read_error_log_interval:
+                    print(f"[ERROR] Failed to get valid temperature after 3 attempts (errors: {self.temp_read_errors}/{self.max_temp_errors})")
+                    self._last_read_error_log = now
 
                 # Attempt automated sensor recovery before falling back
                 recovery_manager = getattr(self.failsafe, 'recovery_manager', None)
@@ -112,7 +123,10 @@ class TempController:
                         print("[RECOVERY] Sensor recovery succeeded, resuming control loop")
                 
                 if self.last_valid_temp is not None and self.temp_read_errors < self.max_temp_errors:
-                    print(f"[WARNING] Using last valid temperature: {self.last_valid_temp:.1f}°C")
+                    now = time.time()
+                    if now - self._last_warning_log >= self._warning_log_interval:
+                        print(f"[WARNING] Using last valid temperature: {self.last_valid_temp:.1f}°C")
+                        self._last_warning_log = now
                     current_temp = self.last_valid_temp
                 else:
                     print("[CRITICAL] No valid temperature available, stopping control")
@@ -123,7 +137,7 @@ class TempController:
                 # This provides better recovery from transient errors
                 if self.temp_read_errors > 0:
                     self.temp_read_errors = max(0, self.temp_read_errors - 1)
-                    if self.temp_read_errors == 0:
+                    if self.temp_read_errors == 0 and self.verbose:
                         print("[INFO] Temperature sensor errors cleared after successful reads")
             
             temp_diff = current_temp - target_temp
@@ -175,7 +189,8 @@ class TempController:
                     raise RuntimeError(f"EMERGENCY SHUTDOWN: {failsafe_message}")
                 
             elif failsafe_action == "warning":
-                print(f"[FAILSAFE WARNING] {failsafe_message}")
+                if self.verbose:
+                    print(f"[FAILSAFE WARNING] {failsafe_message}")
             
             return current_temp, actual_power, mode
             

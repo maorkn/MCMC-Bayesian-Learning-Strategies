@@ -1,8 +1,36 @@
 # temperature_failsafe.py - Temperature Failsafe System
 import time
-from machine import Pin
+try:
+    from machine import Pin
+except ImportError:
+    Pin = None  # Allows import on host systems without machine module
 import gc
-from sensor_recovery import SensorRecoveryManager
+try:
+    from sensor_recovery import SensorRecoveryManager
+except ImportError:
+    class SensorRecoveryManager:
+        """Fallback stub when sensor_recovery module is unavailable."""
+        def __init__(self, *args, **kwargs):
+            self._status = {
+                'attempts': 0,
+                'max_attempts': kwargs.get('max_recovery_attempts', 0),
+                'cooldown': kwargs.get('recovery_cooldown', 0),
+                'last_attempt_time': None,
+                'cooldown_remaining': 0
+            }
+
+        def can_attempt_recovery(self):
+            return False
+
+        def attempt_sensor_recovery(self, *args, **kwargs):
+            return False, None, "Sensor recovery module not available"
+
+        def get_recovery_status(self):
+            return self._status
+
+        def reset_recovery_state(self):
+            self._status['attempts'] = 0
+            self._status['cooldown_remaining'] = 0
 
 class TemperatureFailsafe:
     """Failsafe system to detect stuck temperature readings and prevent overheating."""
@@ -27,6 +55,10 @@ class TemperatureFailsafe:
         self.consecutive_stuck_readings = 0
         self.failsafe_triggered = False
         self.emergency_shutdown_triggered = False
+        self.stuck_temp_epsilon = 0.1  # Allow small natural fluctuations before flagging stuck
+        self.stuck_reset_epsilon = 0.2  # Require meaningful movement before clearing stuck state
+        self._last_stuck_warning_time = 0
+        self._stuck_warning_interval = 30  # seconds between repeated stuck warnings
         
         # Initialize sensor recovery system
         self.recovery_manager = SensorRecoveryManager(
@@ -112,12 +144,24 @@ class TemperatureFailsafe:
         if len(self.temperature_history) < 3:
             return True, None, "Insufficient history"
         
-        # Check if temperature has been exactly the same
-        recent_temps = [h['temp'] for h in self.temperature_history[-10:] if h['temp'] is not None]
+        recent_entries = self.temperature_history[-10:]
+        recent_temps = [h['temp'] for h in recent_entries if h['temp'] is not None]
+        if recent_entries:
+            avg_heater_power = sum(abs(h['heater_power']) for h in recent_entries) / len(recent_entries)
+            avg_cooler_power = sum(abs(h['cooler_power']) for h in recent_entries) / len(recent_entries)
+
+            # If actuators are essentially idle, treat flat temperature as normal stability
+            if avg_heater_power < 5 and avg_cooler_power < 5:
+                if self.stuck_start_time is not None:
+                    print("[FAILSAFE] Temperature stable with low actuator power - clearing stuck state")
+                self.stuck_start_time = None
+                self.consecutive_stuck_readings = 0
+                self._last_stuck_warning_time = 0
+                return True, None, "Temperature stable within control deadband"
         
-        if len(recent_temps) >= 3:
-            # Check if all recent temperatures are identical (within 0.01°C)
-            if all(abs(temp - recent_temps[0]) < 0.01 for temp in recent_temps):
+        if len(recent_temps) >= 5:
+            temp_range = max(recent_temps) - min(recent_temps)
+            if temp_range <= self.stuck_temp_epsilon:
                 if self.stuck_start_time is None:
                     self.stuck_start_time = current_time
                     print(f"[FAILSAFE] Potential stuck temperature detected at {current_temp}°C")
@@ -158,15 +202,18 @@ class TemperatureFailsafe:
                     self.failsafe_triggered = True
                     return False, "emergency_stop", message
                 elif stuck_duration > self.stuck_threshold * 0.5:
-                    return True, "warning", f"Temperature may be stuck ({stuck_duration:.1f}s at {current_temp}°C)"
+                    if current_time - self._last_stuck_warning_time >= self._stuck_warning_interval:
+                        self._last_stuck_warning_time = current_time
+                        return True, "warning", f"Temperature may be stuck ({stuck_duration:.1f}s at {current_temp}°C)"
+                    else:
+                        return True, None, "Monitoring potential stuck condition"
             else:
-                # Temperature is changing normally, reset stuck detection and recovery state
-                if self.stuck_start_time is not None:
+                if self.stuck_start_time is not None and temp_range >= self.stuck_reset_epsilon:
                     print(f"[FAILSAFE] Temperature unstuck - sensor appears healthy")
                     self.recovery_manager.reset_recovery_state()
-                
-                self.stuck_start_time = None
-                self.consecutive_stuck_readings = 0
+                    self.stuck_start_time = None
+                    self.consecutive_stuck_readings = 0
+                    self._last_stuck_warning_time = 0
         
         return True, None, "OK"
     
