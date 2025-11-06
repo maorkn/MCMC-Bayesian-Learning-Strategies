@@ -50,9 +50,12 @@ class TempController:
         
         # Initialize failsafe system
         self.failsafe = TemperatureFailsafe(
-            stuck_threshold_seconds=120,  # 2 minutes as requested
-            max_temp_limit=45.0,          # Maximum safe temperature
-            enable_emergency_shutdown=True
+            stuck_threshold_seconds=300,   # Allow up to 5 minutes before declaring sensor stuck
+            max_temp_limit=45.0,           # Maximum safe temperature
+            enable_emergency_shutdown=True,
+            min_active_power=20.0,
+            setpoint_tolerance=1.0,
+            min_check_interval=30
         )
         
         self.cooler.turn_off()
@@ -174,7 +177,8 @@ class TempController:
             is_safe, failsafe_action, failsafe_message = self.failsafe.check_temperature(
                 current_temp, 
                 self.heater.current_power if hasattr(self.heater, 'current_power') else (actual_power if actual_power > 0 else 0),
-                self.cooler.current_power if hasattr(self.cooler, 'current_power') else (abs(actual_power) if actual_power < 0 else 0)
+                self.cooler.current_power if hasattr(self.cooler, 'current_power') else (abs(actual_power) if actual_power < 0 else 0),
+                target_temp=target_temp
             )
             
             if not is_safe:
@@ -189,8 +193,9 @@ class TempController:
                     raise RuntimeError(f"EMERGENCY SHUTDOWN: {failsafe_message}")
                 
             elif failsafe_action == "warning":
-                if self.verbose:
-                    print(f"[FAILSAFE WARNING] {failsafe_message}")
+                print(f"[FAILSAFE WARNING] {failsafe_message}")
+            elif failsafe_action == "recovery_success":
+                print(f"[FAILSAFE] {failsafe_message}")
             
             return current_temp, actual_power, mode
             

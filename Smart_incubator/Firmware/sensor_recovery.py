@@ -146,8 +146,11 @@ class SensorRecoveryManager:
             
             # Step 3: Verify configuration was set
             read_config = read_register(CONFIG_REG)
-            if read_config != config_value:
-                print(f"[RECOVERY]   Config verification failed: got 0x{read_config:02X}, expected 0x{config_value:02X}")
+            # Some bits (like the one-shot bit) may clear automatically; accept either 0xC3 or 0xC1
+            valid_configs = (config_value, config_value & ~0x02)
+            if read_config not in valid_configs:
+                valid_str = ", ".join("0x{:02X}".format(val) for val in valid_configs)
+                print(f"[RECOVERY]   Config verification failed: got 0x{read_config:02X}, expected one of {valid_str}")
                 return False
             
             print("[RECOVERY]   MAX31865 reset completed")

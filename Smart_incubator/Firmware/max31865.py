@@ -28,7 +28,8 @@ MEDIAN_FILTER_SIZE = 5  # Number of readings for median filter
 MAX_READ_RETRIES = 3   # Maximum retries for each reading
 
 # ---- WARNING RATE LIMITING ----
-WARNING_LOG_INTERVAL_MS = 5000  # Minimum interval between repeated register warnings
+# Reduce chatter when the chip returns intermittent 0x00/0xFF bytes (common while idle)
+WARNING_LOG_INTERVAL_MS = 60000  # Minimum interval between repeated register warnings (ms)
 _register_warning_state = {}
 
 # ---- GLOBAL VARIABLES ----
