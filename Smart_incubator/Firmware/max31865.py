@@ -143,19 +143,24 @@ def read_register(reg):
     
     # Debug output for troubleshooting with rate limiting
     if reg == RTD_MSB_REG or reg == RTD_LSB_REG:
-        if value == 0xFF or value == 0x00:
+        if value == 0xFF:
             _log_register_warning(reg, value)
+        elif value == 0x00:
+            # Only warn on zero if we are actively accumulating invalid reads
+            if consecutive_invalid_reads > 0:
+                _log_register_warning(reg, value)
         else:
             _record_register_recovery(reg)
     
     return value
 
 
-def _reset_invalid_read_counter():
+def _reset_invalid_read_counter(flush_warnings=True):
     """Reset the consecutive invalid read counter."""
     global consecutive_invalid_reads
     consecutive_invalid_reads = 0
-    _flush_register_warning_counters()
+    if flush_warnings:
+        _flush_register_warning_counters()
 
 
 def _register_invalid_read(reason):
@@ -197,7 +202,7 @@ def _soft_reset_sensor(trigger_reason):
     except Exception as e:
         print(f"[MAX31865] Auto-recovery failed: {e}")
     finally:
-        _reset_invalid_read_counter()
+        _reset_invalid_read_counter(flush_warnings=False)
         reset_in_progress = False
 
 def check_fault():
