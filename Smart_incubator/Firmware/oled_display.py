@@ -55,7 +55,11 @@ class OLEDDisplay:
 
         # --- Row 2: Cycle Info & Correlation ---
         self.oled.text(f"Cyc:{cycle_num}", 0, 10)
-        self.oled.text(f"Corr:{correlation}", 64, 10) # Display correlation
+        try:
+            corr_display = f"{float(correlation):.2f}"
+        except (ValueError, TypeError):
+            corr_display = "--"
+        self.oled.text(f"Corr:{corr_display}", 64, 10) # Display correlation
 
         # --- Row 3: Progress Bar ---
         progress = int((elapsed_minutes / cycle_length) * WIDTH)

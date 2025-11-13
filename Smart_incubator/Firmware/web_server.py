@@ -20,7 +20,7 @@ class IncubatorWebServer:
             'max_interval': 10,
             'us_duration': 1,
             'heat_duration': 2,
-            'correlation': 1,
+            'correlation': 1.0,
             'log_interval': 10
         }
         
@@ -33,7 +33,7 @@ class IncubatorWebServer:
             'max_interval': 2,  # 2 minute cycles
             'us_duration': 0.2,  # 12 seconds
             'heat_duration': 0.3,  # 18 seconds
-            'correlation': 3,  # Early stimuli for quick testing
+            'correlation': 1.0,
             'log_interval': 5
         }
     
@@ -113,13 +113,8 @@ class IncubatorWebServer:
                         </select>
                     </div>
                     <div class="form-group">
-                        <label>Correlation:</label>
-                        <select name="correlation">
-                            <option value="0" {'selected' if current_params['correlation'] == 0 else ''}>Random (No Correlation)</option>
-                            <option value="1" {'selected' if current_params['correlation'] == 1 else ''}>US Before Heat Shock</option>
-                            <option value="2" {'selected' if current_params['correlation'] == 2 else ''}>US After Heat Shock</option>
-                            <option value="3" {'selected' if current_params['correlation'] == 3 else ''}>Early Test Mode</option>
-                        </select>
+                        <label>Correlation (-1 to 1):</label>
+                        <input type="number" name="correlation" value="{current_params['correlation']}" step="0.1" min="-1" max="1">
                     </div>
                     <div class="form-group">
                         <label>Min Interval (minutes):</label>
@@ -157,7 +152,7 @@ class IncubatorWebServer:
                 <li>Cycle length: 1-2 minutes (vs normal 5-10 minutes)</li>
                 <li>US duration: 12 seconds (vs normal 1 minute)</li>
                 <li>Heat duration: 18 seconds (vs normal 2 minutes)</li>
-                <li>Early stimuli timing for quick results</li>
+                <li>US paired with heat shock (correlation = 1.0)</li>
             </ul>
         </div>
     </div>
@@ -227,8 +222,14 @@ class IncubatorWebServer:
                     if key in target_params:
                         if key in ['basal_temp', 'heat_shock_temp', 'us_duration', 'heat_duration']:
                             target_params[key] = float(value)
-                        elif key in ['min_interval', 'max_interval', 'correlation', 'log_interval']:
+                        elif key in ['min_interval', 'max_interval', 'log_interval']:
                             target_params[key] = int(value)
+                        elif key == 'correlation':
+                            try:
+                                corr_val = max(-1.0, min(1.0, float(value)))
+                                target_params[key] = corr_val
+                            except (ValueError, TypeError):
+                                print("[Web] Invalid correlation value ignored")
                         else:
                             target_params[key] = value
                 

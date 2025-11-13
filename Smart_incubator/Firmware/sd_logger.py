@@ -64,25 +64,35 @@ class ExperimentLogger:
         
     def _generate_experiment_id(self):
         """Generate experiment ID with timestamp and correlation."""
+        correlation_value = self.meta_data.get('correlation', 1)
+        corr_tag = self._format_correlation_tag(correlation_value)
         try:
-            correlation = float(self.meta_data.get('correlation', 1))
             # Use RTC time to create a meaningful experiment ID
             # Format: YYYYMMDD_HHMMSS_corr
             try:
                 rtc = machine.RTC()
                 dt = rtc.datetime()
                 # dt format: (year, month, day, weekday, hours, minutes, seconds, subseconds)
-                exp_id = f"{dt[0]:04d}{dt[1]:02d}{dt[2]:02d}_{dt[4]:02d}{dt[5]:02d}{dt[6]:02d}_{int(correlation)}"
+                exp_id = f"{dt[0]:04d}{dt[1]:02d}{dt[2]:02d}_{dt[4]:02d}{dt[5]:02d}{dt[6]:02d}_{corr_tag}"
             except Exception as e:
                 # Fallback to Unix timestamp if RTC not available
                 print(f"[WARNING] RTC not available, using timestamp: {e}")
-                exp_id = f"{int(time.time())}_{int(correlation)}"
+                exp_id = f"{int(time.time())}_{corr_tag}"
             
             return exp_id
         except Exception as e:
             print(f"[WARNING] Error generating experiment ID: {e}")
             # Ultimate fallback
-            return f"{int(time.time())}_{int(correlation) if 'correlation' in locals() else 0}"
+            return f"{int(time.time())}_{corr_tag}"
+
+    def _format_correlation_tag(self, value):
+        """Format correlation into a filesystem-safe tag."""
+        try:
+            scaled = int(round(float(value) * 100))
+        except (TypeError, ValueError):
+            scaled = 0
+        prefix = "p" if scaled >= 0 else "m"
+        return f"{prefix}{abs(scaled):03d}"
     
     def _get_timestamp(self):
         """Return Unix timestamp (integer seconds since epoch). Using a simple integer guarantees filenames without invalid FAT characters."""

@@ -33,7 +33,7 @@ min_interval = 200      # minutes (not seconds!)
 max_interval = 400      # minutes (not seconds!)
 us_duration_seconds = 1800     # US window length in seconds (30 minutes)
 heat_duration_seconds = 1800     # Heat shock duration in seconds (30 minutes)
-correlation = 1       # US precedes heat shock at end of cycle
+correlation = 1.0     # Range [-1, 1]: -1 = no US, 0 = random, 1 = paired US before heat
 
 def init_output_pins():
     """Initialize all output pins with PWM."""
@@ -160,7 +160,7 @@ def init_system():
             'heat_duration': heat_duration_minutes,
             'us_duration_seconds': int(us_duration_seconds),
             'heat_duration_seconds': int(heat_duration_seconds),
-            'correlation': int(correlation)
+            'correlation': float(correlation)
         }
         experiment_logger = ExperimentLogger(experiment_params)
         

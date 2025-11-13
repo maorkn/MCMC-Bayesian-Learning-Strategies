@@ -46,7 +46,7 @@ min_interval = 5      # minutes (not seconds!)
 max_interval = 10      # minutes (not seconds!)
 us_duration = 1     # 30 seconds = 0.5 minutes
 heat_duration = 2     # 2 minutes - increased for testing to see temp change
-correlation = 1       # US precedes heat shock at end of cycle
+correlation = 1.0     # Range [-1, 1]: -1 disables US, 0 random, 1 paired
 
 def init_output_pins():
     """Initialize all output pins with PWM."""
@@ -139,7 +139,7 @@ def init_system():
             'max_interval': int(max_interval),
             'us_duration': int(us_duration),
             'heat_duration': int(heat_duration),
-            'correlation': int(correlation)
+            'correlation': float(correlation)
         }
         
         with _sd_lock:

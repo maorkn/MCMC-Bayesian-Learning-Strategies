@@ -33,6 +33,30 @@ def run_experiment_cycle(
     print(f"us_duration: {us_duration} seconds")
     print(f"heat_duration: {heat_duration} seconds")
     
+    # Normalize correlation into [-1, 1] and decide per-cycle behavior
+    try:
+        correlation_value = float(correlation)
+    except (ValueError, TypeError):
+        correlation_value = 0.0
+    correlation_value = max(-1.0, min(1.0, correlation_value))
+
+    def _random_unit():
+        return urandom.getrandbits(16) / 65535.0
+
+    def _select_correlation_mode(value):
+        if value >= 1.0:
+            return "paired"
+        if value <= -1.0:
+            return "no_us"
+        if value == 0.0:
+            return "random"
+        if value > 0.0:
+            return "paired" if _random_unit() < value else "random"
+        probability_no_us = abs(value)
+        return "no_us" if _random_unit() < probability_no_us else "random"
+
+    correlation_mode = _select_correlation_mode(correlation_value)
+
     # Calculate cycle parameters
     cycle_length_minutes = urandom.randint(min_interval, max_interval)
     cycle_length_seconds = cycle_length_minutes * 60
@@ -41,33 +65,30 @@ def run_experiment_cycle(
     us_duration_seconds = max(1, int(us_duration))
     heat_duration_seconds = max(1, int(heat_duration))
 
-    # Calculate US and heat start times based on correlation (all in seconds)
-    if correlation == 0:
+    us_start_seconds = None
+    heat_start_seconds = None
+    us_enabled = correlation_mode != "no_us"
+
+    # Calculate US and heat start times based on correlation mode (all in seconds)
+    if correlation_mode == "random":
         # Correlation 0: Completely random US and heat shock (independent)
         max_heat_start = max(0, cycle_length_seconds - heat_duration_seconds)
         max_us_start = max(0, cycle_length_seconds - us_duration_seconds)
         heat_start_seconds = urandom.randint(0, max_heat_start)
         us_start_seconds = urandom.randint(0, max_us_start)
-    elif correlation == 1:
+    elif correlation_mode == "paired":
         # Correlation 1: US precedes heat shock (at end of cycle)
         heat_start_seconds = max(0, cycle_length_seconds - heat_duration_seconds)
         us_start_seconds = max(0, heat_start_seconds - us_duration_seconds)
-    elif correlation == 2:
-        # Correlation 2: US follows heat shock
-        heat_start_seconds = max(0, cycle_length_seconds - heat_duration_seconds - us_duration_seconds)
-        us_start_seconds = max(0, min(cycle_length_seconds - us_duration_seconds, heat_start_seconds + heat_duration_seconds))
-    elif correlation == 3:
-        # Correlation 3: Early stimuli for testing (heat shock at 1 minute, US before)
-        heat_start_seconds = 60
-        us_start_seconds = max(0, heat_start_seconds - us_duration_seconds)
     else:
-        # Default to correlation 1 behavior
+        # No US: keep heat shock deterministic at end of cycle
         heat_start_seconds = max(0, cycle_length_seconds - heat_duration_seconds)
-        us_start_seconds = max(0, heat_start_seconds - us_duration_seconds)
+        us_enabled = False
+        us_start_seconds = None
 
     # Print cycle parameters
     heat_start_minutes = heat_start_seconds / 60
-    us_start_minutes = us_start_seconds / 60
+    us_start_minutes = us_start_seconds / 60 if us_start_seconds is not None else None
     us_duration_minutes = us_duration_seconds / 60
     heat_duration_minutes = heat_duration_seconds / 60
     cycle_length_minutes_float = cycle_length_seconds / 60
@@ -75,8 +96,11 @@ def run_experiment_cycle(
     print("\nCycle Parameters:")
     print(f"Cycle Length: {cycle_length_minutes_float:.2f} minutes")
     print(f"US Type: {us_type}")
-    print(f"Correlation: {correlation}")
-    print(f"US Start: {us_start_minutes:.2f} minutes ({us_start_seconds} seconds)")
+    print(f"Correlation: {correlation_value:.2f} (mode: {correlation_mode})")
+    if us_start_minutes is None:
+        print("US Start: disabled")
+    else:
+        print(f"US Start: {us_start_minutes:.2f} minutes ({us_start_seconds} seconds)")
     print(f"Heat Shock Start: {heat_start_minutes:.2f} minutes ({heat_start_seconds} seconds)")
     print(f"US Duration: {us_duration_seconds} seconds ({us_duration_minutes:.2f} minutes)")
     print(f"Heat Duration: {heat_duration_seconds} seconds ({heat_duration_minutes:.2f} minutes)")
@@ -95,7 +119,8 @@ def run_experiment_cycle(
         "us_duration_seconds": us_duration_seconds,
         "heat_duration_seconds": heat_duration_seconds,
         "us_type": us_type,
-        "correlation": correlation,
+        "correlation": correlation_value,
+        "correlation_mode": correlation_mode,
         "readings": []
     }
     
@@ -214,7 +239,11 @@ def run_experiment_cycle(
             tec_state = 1 if temp_diff > 0.1 else 0
             
             # Update US state
-            us_active = (elapsed_seconds >= us_start_seconds) and (elapsed_seconds < us_start_seconds + us_duration_seconds)
+            us_active = (
+                us_enabled and
+                elapsed_seconds >= us_start_seconds and
+                elapsed_seconds < us_start_seconds + us_duration_seconds
+            )
             if us_active:
                 if not us_currently_active:
                     us_controller.activate(us_type)
@@ -239,7 +268,7 @@ def run_experiment_cycle(
                     1 if us_type in ["VIB", "BOTH"] and us_active else 0,  # vib_active
                     tec_state,  # tec_state
                     cycle_number,  # cycle_num
-                    correlation # Pass correlation value
+                    correlation_value # Pass correlation value
                 )
             
             # Log data if interval has passed
@@ -339,7 +368,8 @@ def run_experiment_cycle(
             'duration_minutes': total_duration / 60,
             'final_temp': last_valid_temp if last_valid_temp is not None else 0,
             'final_power': power,
-            'final_mode': mode
+            'final_mode': mode,
+            'correlation_mode': correlation_mode
         })
         
         # Log cycle summary
@@ -359,7 +389,8 @@ def run_experiment_cycle(
                 'error': str(e),
                 'end_time': time.time(),
                 'final_temp': last_valid_temp if last_valid_temp is not None else 0,
-                'error_count': cycle_stats['error_count']
+                'error_count': cycle_stats['error_count'],
+                'correlation_mode': correlation_mode
             }
             experiment_logger.log_cycle_summary(cycle_number, error_data)
             experiment_logger.finalize_experiment(status='error', error=str(e))

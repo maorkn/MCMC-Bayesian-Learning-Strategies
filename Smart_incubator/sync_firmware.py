@@ -46,13 +46,16 @@ SKIP_FILES = {
 
 # CLI / runtime configuration (populated in main)
 AUTO_YES = os.getenv("SYNC_AUTO_YES") == "1"
-CORRELATION_OVERRIDE: Optional[int] = None
+CORRELATION_OVERRIDE: Optional[float] = None
 _CORRELATION_NOTICE_EMITTED = False
 
-def _apply_correlation_override(source_text: str, correlation_value: int) -> Optional[str]:
+def _apply_correlation_override(source_text: str, correlation_value: float) -> Optional[str]:
     """Return source with the first correlation assignment replaced."""
-    pattern = re.compile(r"^(\s*correlation\s*=\s*)([0-9]+)", re.MULTILINE)
-    new_text, replacements = pattern.subn(r"\g<1>{}".format(correlation_value), source_text, count=1)
+    formatted_value = "{:.3f}".format(correlation_value).rstrip('0').rstrip('.')
+    if formatted_value == "-0":
+        formatted_value = "0"
+    pattern = re.compile(r"^(\s*correlation\s*=\s*)([-+]?[0-9]*\.?[0-9]+)", re.MULTILINE)
+    new_text, replacements = pattern.subn(r"\g<1>{}".format(formatted_value), source_text, count=1)
     if replacements == 0:
         return None
     return new_text
@@ -437,7 +440,11 @@ def check_firmware_exists() -> bool:
 def parse_args():
     parser = argparse.ArgumentParser(description="Smart Incubator firmware redeploy tool")
     parser.add_argument("--yes", action="store_true", help="Skip confirmation and interactive prompts")
-    parser.add_argument("--correlation", type=int, choices=[0, 1], help="Override correlation value in main.py (0 or 1)")
+    parser.add_argument(
+        "--correlation",
+        type=float,
+        help="Override correlation value in main.py (-1.0 to 1.0)"
+    )
     parser.add_argument("--port", help="Explicit serial port to use (overrides auto-detect)")
     parser.add_argument("--force", "-f", "--reset", dest="force", action="store_true", help=argparse.SUPPRESS)
     return parser.parse_args()
@@ -578,7 +585,7 @@ def main():
     args = parse_args()
     AUTO_YES = AUTO_YES or args.yes
     if args.correlation is not None:
-        CORRELATION_OVERRIDE = args.correlation
+        CORRELATION_OVERRIDE = max(-1.0, min(1.0, args.correlation))
 
     print("🔧 Smart Incubator Firmware Sync (Full Redeploy Mode)")
     print("=" * 40)
