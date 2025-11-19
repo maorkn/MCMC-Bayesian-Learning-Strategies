@@ -9,13 +9,41 @@
         "Smart_incubator/sync_firmware.py",
         "--yes",
         "--correlation",
-        "${input:correlationMode}"
+        "${input:correlationMode}",
+        "--entry-script",
+        "${input:entryScript}"
       ],
       "options": {
         "cwd": "${workspaceFolder}"
       },
       "group": {
         "kind": "build",
+        "isDefault": true
+      },
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared",
+        "showReuseMessage": false
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Smart Incubator: Sync Test Firmware",
+      "type": "shell",
+      "command": "python",
+      "args": [
+        "Smart_incubator/sync_firmware.py",
+        "--yes",
+        "--entry-script",
+        "main_test.py"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "group": {
+        "kind": "test",
         "isDefault": true
       },
       "presentation": {
@@ -189,6 +217,22 @@
         }
       ],
       "default": "1"
+    },
+    {
+      "id": "entryScript",
+      "type": "pickString",
+      "description": "Select which main*.py to deploy as /main.py",
+      "options": [
+        {
+          "label": "Training runtime (main.py)",
+          "value": "main.py"
+        },
+        {
+          "label": "Post-training test (main_test.py)",
+          "value": "main_test.py"
+        }
+      ],
+      "default": "main.py"
     }
   ]
 }
