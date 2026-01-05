@@ -1,0 +1,198 @@
+{
+  "variant": "no_TEC1_teardown",
+  "created_at": "2025-11-28T15:56:18.786920Z",
+  "items": [
+    {
+      "group": "assembly",
+      "name": "PTC heater",
+      "spec": "PTC 12V 120C",
+      "qty_per_unit": 2,
+      "inventory_raw": "7",
+      "inventory_numeric": 7
+    },
+    {
+      "group": "assembly",
+      "name": "Thermal cutoff",
+      "spec": "KSD 9700 250V 5A 65C",
+      "qty_per_unit": 1,
+      "inventory_raw": "15",
+      "inventory_numeric": 15
+    },
+    {
+      "group": "assembly",
+      "name": "Vibration motor",
+      "spec": "V919",
+      "qty_per_unit": 2,
+      "inventory_raw": "10",
+      "inventory_numeric": 10
+    },
+    {
+      "group": "assembly",
+      "name": "RTD interface",
+      "spec": "MAX31865 PT100 Adafruit board",
+      "qty_per_unit": 1,
+      "inventory_raw": "10",
+      "inventory_numeric": 10
+    },
+    {
+      "group": "assembly",
+      "name": "SD card SPI module",
+      "spec": "MicroSD SPI breakout",
+      "qty_per_unit": 1,
+      "inventory_raw": "4",
+      "inventory_numeric": 4
+    },
+    {
+      "group": "assembly",
+      "name": "SD card",
+      "spec": "MicroSD card",
+      "qty_per_unit": 1,
+      "inventory_raw": "1",
+      "inventory_numeric": 1
+    },
+    {
+      "group": "assembly",
+      "name": "OLED display",
+      "spec": "0.96\" OLED 41215",
+      "qty_per_unit": 1,
+      "inventory_raw": "3",
+      "inventory_numeric": 3
+    },
+    {
+      "group": "assembly",
+      "name": "Cooling fan (external)",
+      "spec": "12V 40 mm",
+      "qty_per_unit": 1,
+      "inventory_raw": "8",
+      "inventory_numeric": 8
+    },
+    {
+      "group": "assembly",
+      "name": "Mixing fan (internal)",
+      "spec": "30 mm 12V",
+      "qty_per_unit": 1,
+      "inventory_raw": "2",
+      "inventory_numeric": 2
+    },
+    {
+      "group": "assembly",
+      "name": "Lid PCB LED array",
+      "spec": "Lid PCB + 6 white LEDs + 6\u00d7430\u03a9 resistors",
+      "qty_per_unit": 1,
+      "inventory_raw": "1",
+      "inventory_numeric": 1
+    },
+    {
+      "group": "pcb",
+      "name": "Header for MAX31865 board",
+      "spec": "8-pin straight header",
+      "qty_per_unit": 1,
+      "inventory_raw": "24",
+      "inventory_numeric": 24
+    },
+    {
+      "group": "pcb",
+      "name": "Header for SD card module",
+      "spec": "6-pin straight header",
+      "qty_per_unit": 1,
+      "inventory_raw": "17",
+      "inventory_numeric": 17
+    },
+    {
+      "group": "pcb",
+      "name": "Header for OLED",
+      "spec": "4-pin straight header",
+      "qty_per_unit": 1,
+      "inventory_raw": "25",
+      "inventory_numeric": 25
+    },
+    {
+      "group": "pcb",
+      "name": "Header for ESP32",
+      "spec": "2\u00d718-pin header set",
+      "qty_per_unit": 1,
+      "inventory_raw": "9",
+      "inventory_numeric": 9
+    },
+    {
+      "group": "pcb",
+      "name": "SMD resistors 220\u03a9",
+      "spec": "SMB 220\u03a9",
+      "qty_per_unit": 3,
+      "inventory_raw": "100",
+      "inventory_numeric": 100
+    },
+    {
+      "group": "pcb",
+      "name": "SMD LED (red)",
+      "spec": "Red SMB LED",
+      "qty_per_unit": 1,
+      "inventory_raw": "20",
+      "inventory_numeric": 20
+    },
+    {
+      "group": "pcb",
+      "name": "SMD LED (green)",
+      "spec": "Green SMB LED",
+      "qty_per_unit": 1,
+      "inventory_raw": "20",
+      "inventory_numeric": 20
+    },
+    {
+      "group": "pcb",
+      "name": "SMD LED (yellow)",
+      "spec": "Yellow SMB LED",
+      "qty_per_unit": 1,
+      "inventory_raw": "20",
+      "inventory_numeric": 20
+    },
+    {
+      "group": "pcb",
+      "name": "Resistors 10k\u03a9",
+      "spec": "Through-hole or SMD 10k\u03a9",
+      "qty_per_unit": 3,
+      "inventory_raw": "100",
+      "inventory_numeric": 100
+    },
+    {
+      "group": "pcb",
+      "name": "Resistors 220\u03a9",
+      "spec": "Through-hole or SMD 220\u03a9",
+      "qty_per_unit": 3,
+      "inventory_raw": "100",
+      "inventory_numeric": 100
+    },
+    {
+      "group": "pcb",
+      "name": "2-pin cable jacks",
+      "spec": "Screw or JST, 2-pin",
+      "qty_per_unit": 5,
+      "inventory_raw": "51",
+      "inventory_numeric": 51
+    },
+    {
+      "group": "pcb",
+      "name": "3-pin cable jack",
+      "spec": "Screw or JST, 3-pin",
+      "qty_per_unit": 1,
+      "inventory_raw": "5",
+      "inventory_numeric": 5
+    },
+    {
+      "group": "pcb",
+      "name": "MOSFETs",
+      "spec": "Power MOSFET (e.g., IRFZ44N)",
+      "qty_per_unit": 3,
+      "inventory_raw": "20",
+      "inventory_numeric": 20
+    },
+    {
+      "group": "pcb",
+      "name": "Resettable fuse",
+      "spec": "F1 10A PPTC",
+      "qty_per_unit": 1,
+      "inventory_raw": "10",
+      "inventory_numeric": 10
+    }
+  ]
+}

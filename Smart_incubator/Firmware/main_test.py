@@ -29,7 +29,7 @@ experiment_logger = None
 training_temp = 23.0                     # Degrees Celsius during US exposure
 challenge_temp = 38.0                    # Degrees Celsius during lethal challenge
 training_duration_seconds = 30 * 60      # 30 minutes of US at basal temperature
-challenge_duration_seconds = 30 * 60     # Default 30 minute challenge (adjust as needed)
+challenge_duration_seconds = 150 * 60     # Default 150 minute challenge (adjust as needed)
 us_led_intensity = 100                   # 100% light intensity
 us_vibration_intensity = 100             # 100% vibration intensity
 us_type = "BOTH"
@@ -38,6 +38,10 @@ status_interval_seconds = 60             # Console status cadence
 gc_interval_seconds = 300                # Run GC every 5 minutes
 
 test_notes = "Post-training survival test with tubes: corr=1, corr=0, control"
+stage_display_metadata = {
+    "training_us": {"cycle": 1, "correlation": 1.0},
+    "heat_challenge": {"cycle": 2, "correlation": 0.0}
+}
 
 
 def init_output_pins():
@@ -155,6 +159,26 @@ def configure_us_for_training():
     us_controller.set_led_intensity(us_led_intensity)
     us_controller.set_vib_intensity(us_vibration_intensity)
     us_controller.set_vib_interval(f"{training_duration_seconds}:0")  # Keep vibration on
+
+
+def refresh_display(stage_name, elapsed, duration_seconds, target_temp, current_temp, us_active, mode):
+    """Render current stage status on the OLED (if available)."""
+    if not display or current_temp is None:
+        return
+
+    metadata = stage_display_metadata.get(stage_name, {})
+    display.update_display(
+        current_temp=current_temp,
+        set_temp=target_temp,
+        elapsed_minutes=elapsed / 60.0,
+        cycle_length=max(1, duration_seconds / 60.0),
+        us_active=1 if us_active else 0,
+        led_active=1 if us_active else 0,
+        vib_active=1 if us_active else 0,
+        tec_state=0 if mode == "Idle" else 1,
+        cycle_num=metadata.get("cycle", 0),
+        correlation=metadata.get("correlation", 0.0)
+    )
 
 
 def log_stage_snapshot(cycle_number, stage_name, elapsed, remaining, target_temp,
@@ -278,6 +302,16 @@ def run_stage(stage_name, cycle_number, target_temp, duration_seconds, activate_
                 print(f"[{stage_name}] Elapsed {elapsed/60:.1f}m / {duration_seconds/60:.1f}m | "
                       f"Temp {current_temp:.2f}°C | Mode {mode} | Power {power:.1f}")
                 last_status_time = now
+
+            refresh_display(
+                stage_name=stage_name,
+                elapsed=elapsed,
+                duration_seconds=duration_seconds,
+                target_temp=target_temp,
+                current_temp=current_temp,
+                us_active=us_active,
+                mode=mode
+            )
 
             if now - last_gc_time >= gc_interval_seconds:
                 gc.collect()
