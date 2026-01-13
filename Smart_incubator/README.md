@@ -290,13 +290,16 @@ python Smart_incubator/sync_firmware.py --correlation 1 --yes
 # 2️⃣ Redeploy with alternate correlation (control runs)
 python Smart_incubator/sync_firmware.py --correlation 0 --yes
 
+# 3️⃣ Deploy the post-training survival test firmware
+python Smart_incubator/sync_firmware.py --yes --entry-script main_test.py
+
 # (Windows example if auto-detect misses COM port)
 python Smart_incubator/sync_firmware.py --correlation 1 --yes --port COM3
 
-# 3️⃣ Format SD card - see SD Card Formatting section below
+# 4️⃣ Format SD card - see SD Card Formatting section below
 
-# 4️⃣ Or use VS Code (even easier!)
-# Press Ctrl+Shift+B to deploy (pick correlation in the prompt)
+# 5️⃣ Or use VS Code (even easier!)
+# Press Ctrl+Shift+B to deploy (pick correlation + entry script in the prompt)
 # Press Ctrl+Shift+P → "Tasks: Run Task" → choose task
 ```
 
@@ -304,7 +307,7 @@ python Smart_incubator/sync_firmware.py --correlation 1 --yes --port COM3
 > ℹ️ `sync_firmware.py` auto-detects `mpremote` (`mpremote`, `py -m mpremote`, `python -m mpremote`, etc.) and prints the command it will use. Set `MPREMOTE="path/to/mpremote"` if you need a custom executable.
 
 **Available VS Code Tasks:**
-- **Sync Firmware (Full Redeploy)** - Safe redeploy with correlation picker (default: `Ctrl+Shift+B`)
+- **Sync Firmware (Full Redeploy)** - Safe redeploy with correlation + entry-script picker (default: `Ctrl+Shift+B`)
 - **Format SD Card** - Clean SD card for new experiments
 - **Deploy Core HES Modules** - Upload only HES system files
 - **Deploy Full Firmware** - Upload all firmware files
@@ -371,6 +374,7 @@ Safe, repeatable firmware deployment every time:
 - Installs a temporary safe boot, wipes the device, and re-uploads all firmware
 - Automatically reconfigures the SD card structure and required packages
 - Optional `--correlation 0|1` flag rewrites `main.py` before upload so you never edit by hand
+- Optional `--entry-script main_test.py` installs the survival-test harness as `/main.py` (default is the training runtime)
 - `--yes` (or the VS Code task) skips prompts for unattended reflashes
 - Auto-detects the ESP32 port, with `--port` override when needed
 - Validates the `mpremote` command before flashing and falls back through multiple launchers; override with `MPREMOTE` if your setup is non-standard

@@ -48,6 +48,7 @@ SKIP_FILES = {
 AUTO_YES = os.getenv("SYNC_AUTO_YES") == "1"
 CORRELATION_OVERRIDE: Optional[float] = None
 _CORRELATION_NOTICE_EMITTED = False
+ENTRY_SCRIPT_NAME = "main.py"
 
 def _apply_correlation_override(source_text: str, correlation_value: float) -> Optional[str]:
     """Return source with the first correlation assignment replaced."""
@@ -445,6 +446,12 @@ def parse_args():
         type=float,
         help="Override correlation value in main.py (-1.0 to 1.0)"
     )
+    parser.add_argument(
+        "--entry-script",
+        type=str,
+        default="main.py",
+        help="Local script name to install as /main.py (e.g., main_test.py)"
+    )
     parser.add_argument("--port", help="Explicit serial port to use (overrides auto-detect)")
     parser.add_argument("--force", "-f", "--reset", dest="force", action="store_true", help=argparse.SUPPRESS)
     return parser.parse_args()
@@ -455,7 +462,7 @@ def parse_args():
 
 def full_redeploy(port: str):
     """Perform a full redeploy every time (safe boot, wipe, upload all, restore, reset)."""
-    global AUTO_YES, CORRELATION_OVERRIDE
+    global AUTO_YES, CORRELATION_OVERRIDE, ENTRY_SCRIPT_NAME
     print("\n" + "="*60)
     print("🧼 FULL REDEPLOY")
     print("="*60)
@@ -527,6 +534,7 @@ def full_redeploy(port: str):
     print(f"  Found {len(all_files)} file(s) to upload\n")
 
     success_count = 0
+    entry_override_active = ENTRY_SCRIPT_NAME != "main.py"
     for filepath in sorted(all_files):
         # Determine remote path
         if str(filepath).startswith(FIRMWARE_DIR):
@@ -541,9 +549,22 @@ def full_redeploy(port: str):
         else:
             # Fallback to root
             remote_path = f"/{filepath.name}"
+
+        if entry_override_active and filepath.name == "main.py":
+            remote_path = "/main_training.py"
+            print("    ↪️  Entry override active: uploading default main.py as /main_training.py")
+
         if upload_file(port, filepath, remote_path):
             success_count += 1
             time.sleep(0.2)
+
+    if entry_override_active:
+        entry_path = Path(FIRMWARE_DIR) / ENTRY_SCRIPT_NAME
+        if entry_path.exists():
+            print(f"\n📤 Installing entry script override {ENTRY_SCRIPT_NAME} as /main.py...")
+            upload_file(port, entry_path, "/main.py")
+        else:
+            print(f"\n⚠️  Entry script override requested but {entry_path} was not found. /main.py left unchanged.")
 
     print(f"\n    ✅ Uploaded {success_count}/{len(all_files)} files")
 
@@ -580,12 +601,21 @@ def full_redeploy(port: str):
 # =========================
 
 def main():
-    global AUTO_YES, CORRELATION_OVERRIDE
+    global AUTO_YES, CORRELATION_OVERRIDE, ENTRY_SCRIPT_NAME
 
     args = parse_args()
     AUTO_YES = AUTO_YES or args.yes
     if args.correlation is not None:
         CORRELATION_OVERRIDE = max(-1.0, min(1.0, args.correlation))
+    entry_name = (args.entry_script or "main.py").strip()
+    if not entry_name:
+        entry_name = "main.py"
+    if not entry_name.endswith(".py"):
+        entry_name = f"{entry_name}.py"
+    ENTRY_SCRIPT_NAME = os.path.basename(entry_name)
+
+    if ENTRY_SCRIPT_NAME != "main.py":
+        print(f"ℹ️  Entry script override active: {ENTRY_SCRIPT_NAME} → /main.py\n")
 
     print("🔧 Smart Incubator Firmware Sync (Full Redeploy Mode)")
     print("=" * 40)

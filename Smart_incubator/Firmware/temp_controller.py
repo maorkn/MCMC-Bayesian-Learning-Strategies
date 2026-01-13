@@ -145,18 +145,11 @@ class TempController:
             
             temp_diff = current_temp - target_temp
             
-            # Check deadband BEFORE computing PID to prevent integral windup
-            # Deadband: -0.1°C to +0.5°C (slightly asymmetric to prevent oscillation)
-            if -0.1 <= temp_diff <= 0.5:
-                # Reset PID state when in deadband to prevent integral windup
-                self.pid.prev_error = 0
-                # Keep a small integral to respond faster when leaving deadband
-                self.pid.integral *= 0.5  # Decay integral instead of resetting completely
-                self.heater.turn_off()
-                self.cooler.turn_off()
-                return current_temp, 0, "Idle"
+            # Removed aggressive deadband that was forcing the heater OFF at 31.9C (target - 0.1)
+            # This was causing the "reach 32 and drop" behavior.
+            # We now rely on the PID controller to reduce power as we approach the target.
             
-            # Only compute PID when outside deadband
+            # Only compute PID
             power = self.pid.compute(target_temp, current_temp)
             actual_power = power
             
