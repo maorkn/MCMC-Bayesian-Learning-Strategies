@@ -2,14 +2,17 @@
 from machine import Pin, PWM
 import time
 import gc
-from max31865 import init_max31865, read_temperature
-from sd_logger import ExperimentLogger, init_sd, deinit as sd_deinit
-from oled_display import OLEDDisplay
-from temp_controller import TempController
-from led_control import LED
-from vibration_control import Vibration
-from us_control import USController
-from run_experiment_cycle import run_experiment_cycle
+
+# Defer heavy imports until after WiFi setup to save memory
+# These will be imported later:
+# from max31865 import init_max31865, read_temperature
+# from sd_logger import ExperimentLogger, init_sd, deinit as sd_deinit
+# from oled_display import OLEDDisplay
+# from temp_controller import TempController
+# from led_control import LED
+# from vibration_control import Vibration
+# from us_control import USController
+# from run_experiment_cycle import run_experiment_cycle
 
 # ---- PIN DEFINITIONS ----
 TEC_PIN = 27  # TEC1 cooler control pin
@@ -24,8 +27,10 @@ us_controller = None
 led_pwm = None
 vib_pwm = None
 experiment_logger = None
+wifi_ap = None
+setup_server = None
 
-# ---- EXPERIMENT CONFIGURATION ----
+# ---- EXPERIMENT CONFIGURATION (defaults, will be overridden by web config) ----
 basal_temp = 23.0
 heat_shock_temp = 32.0
 us_type = "BOTH"
@@ -34,6 +39,7 @@ max_interval = 400      # minutes (not seconds!)
 us_duration_seconds = 1800     # US window length in seconds (30 minutes)
 heat_duration_seconds = 1800     # Heat shock duration in seconds (30 minutes)
 correlation = 1.0     # Range [-1, 1]: -1 = no US, 0 = random, 1 = paired US before heat
+experiment_name = "default_experiment"
 
 def init_output_pins():
     """Initialize all output pins with PWM."""
@@ -52,11 +58,13 @@ def init_output_pins():
 
 def init_temp_sensor():
     """Initialize temperature sensor."""
+    from max31865 import init_max31865
     return init_max31865()
 
 def init_display():
     """Initialize OLED display (optional - system continues if this fails)."""
     try:
+        from oled_display import OLEDDisplay
         display = OLEDDisplay()
         print("[System] OLED display initialized successfully")
         return display
@@ -67,28 +75,48 @@ def init_display():
 
 def init_temp_controller():
     """Initialize temperature controller."""
+    from temp_controller import TempController
     # Reverted PID parameters to original values for 1kHz PWM frequency
     return TempController(PTC_PIN, TEC_PIN, kp=6.0, ki=0.02, kd=1.5)
 
 def init_us_controller():
     """Initialize US controller."""
     global led_pwm, vib_pwm
+    from led_control import LED
+    from vibration_control import Vibration
+    from us_control import USController
     led = LED(led_pwm)
     vibration = Vibration(vib_pwm)
     return USController(led, vibration)
 
 def cleanup_globals():
     """Clean up global variables for retry attempts."""
-    global display, temp_ctrl, us_controller, experiment_logger
+    global display, temp_ctrl, us_controller, experiment_logger, wifi_ap, setup_server
     
-    print("[Cleanup] Cleaning up SPI and hardware resources...")
+    print("[Cleanup] Cleaning up resources...")
     
-    # Deinitialize SD card SPI resources first
+    # Stop WiFi AP if active
+    if wifi_ap:
+        try:
+            wifi_ap.active(False)
+            wifi_ap = None
+        except:
+            pass
+    
+    # Stop setup server if active
+    if setup_server:
+        try:
+            setup_server.stop_server()
+            setup_server = None
+        except:
+            pass
+    
+    # Deinitialize SD card SPI resources
     try:
+        from sd_logger import deinit as sd_deinit
         sd_deinit()
-        print("[Cleanup] SD card SPI deinitialized")
-    except Exception as e:
-        print(f"[Cleanup] SD deinit warning: {e}")
+    except:
+        pass
     
     # Add delay to ensure SPI buses are fully released
     time.sleep(1)
@@ -106,6 +134,8 @@ def cleanup_globals():
 def init_system():
     """Initialize all system components."""
     global display, temp_ctrl, us_controller, experiment_logger
+    global basal_temp, heat_shock_temp, us_type, min_interval, max_interval
+    global us_duration_seconds, heat_duration_seconds, correlation, experiment_name
     
     try:
         print("\n=== Smart Incubator Control System ===")
@@ -142,15 +172,17 @@ def init_system():
         
         # Initialize SD card
         print("[System] Initializing SD card...")
+        from sd_logger import ExperimentLogger, init_sd
         if not init_sd():
             raise Exception("SD card initialization failed")
         
-        # Initialize experiment logger with default name
+        # Initialize experiment logger with current parameters
         print("[System] Initializing experiment logger...")
         us_duration_minutes = us_duration_seconds / 60.0
         heat_duration_minutes = heat_duration_seconds / 60.0
 
         experiment_params = {
+            'experiment_name': str(experiment_name),
             'basal_temp': float(basal_temp),
             'heat_shock_temp': float(heat_shock_temp),
             'us_type': str(us_type),
@@ -174,14 +206,129 @@ def init_system():
         print(f"[ERROR] System initialization failed: {e}")
         return False
 
+def wait_for_web_config():
+    """
+    Start WiFi AP and web server, wait for user to configure and start experiment.
+    Returns the experiment configuration when user clicks start.
+    """
+    global wifi_ap, setup_server
+    
+    # Import WiFi modules now (deferred to save memory at boot)
+    from wifi_setup import create_ap, get_unique_device_id
+    from experiment_setup_server import ExperimentSetupServer
+    
+    # Force garbage collection before WiFi
+    gc.collect()
+    print(f"[Memory] Before WiFi: {gc.mem_free()} bytes")
+    
+    # Get unique device ID
+    device_id = get_unique_device_id()
+    print(f"[Setup] Device ID: {device_id}")
+    
+    # Create WiFi Access Point with unique SSID
+    print("[Setup] Creating WiFi Access Point...")
+    gc.collect()
+    wifi_ap, ssid, ip = create_ap()
+    
+    gc.collect()
+    print(f"[Memory] After WiFi: {gc.mem_free()} bytes")
+    
+    # Initialize temperature sensor for web display
+    print("[Setup] Initializing temperature sensor...")
+    try:
+        from max31865 import init_max31865
+        init_max31865()
+    except Exception as e:
+        print(f"[Setup] Temp sensor warning: {e}")
+    
+    gc.collect()
+    
+    # Create and start setup server
+    setup_server = ExperimentSetupServer(device_id=device_id)
+    setup_server.start_server(port=80)
+    
+    # Display connection info on OLED if available
+    try:
+        from oled_display import OLEDDisplay
+        temp_display = OLEDDisplay()
+        temp_display.clear()
+        temp_display.show_message(f"WiFi: {ssid}", line=0)
+        temp_display.show_message(f"Pass: incubator123", line=1)
+        temp_display.show_message(f"IP: {ip}", line=2)
+        temp_display.show_message("Waiting...", line=3)
+    except:
+        pass
+    
+    print(f"\nConnect to WiFi: {ssid}")
+    print(f"Password: incubator123")
+    print(f"Open: http://{ip}\n")
+    
+    # Wait for user to configure and start
+    config = setup_server.serve_until_start()
+    
+    # Clean up server
+    setup_server.stop_server()
+    setup_server = None
+    
+    # Stop WiFi to free memory for experiment
+    if wifi_ap:
+        wifi_ap.active(False)
+        wifi_ap = None
+    
+    gc.collect()
+    print(f"[Setup] Config received: {config['experiment_name']}, corr={config['correlation']}")
+    print(f"[Memory] After cleanup: {gc.mem_free()} bytes")
+    
+    return config
+
 def main():
     """Main program loop."""
-    print("\n=== Smart Incubator Control System ===")
-    print("Initializing...")
+    global basal_temp, heat_shock_temp, us_type, min_interval, max_interval
+    global us_duration_seconds, heat_duration_seconds, correlation, experiment_name
+    global wifi_ap
+    
+    print("\n" + "="*60)
+    print("   SMART INCUBATOR CONTROL SYSTEM v2.0")
+    print("   WiFi Configuration Mode")
+    print("="*60)
     
     # Print initial memory status
     gc.collect()
     print(f"[Memory] Initial free heap: {gc.mem_free()} bytes")
+    
+    # PHASE 1: Wait for web configuration
+    print("\n[Phase 1] Starting WiFi setup mode...")
+    try:
+        config = wait_for_web_config()
+        
+        # Apply configuration from web interface
+        experiment_name = config['experiment_name']
+        correlation = config['correlation']
+        basal_temp = config['basal_temp']
+        heat_shock_temp = config['heat_shock_temp']
+        us_type = config['us_type']
+        min_interval = config['min_interval']
+        max_interval = config['max_interval']
+        us_duration_seconds = config['us_duration'] * 60  # Convert minutes to seconds
+        heat_duration_seconds = config['heat_duration'] * 60  # Convert minutes to seconds
+        
+        print("\n[Config] Applied configuration:")
+        print(f"  - Experiment: {experiment_name}")
+        print(f"  - Correlation: {correlation}")
+        print(f"  - Basal Temp: {basal_temp}°C")
+        print(f"  - Heat Shock: {heat_shock_temp}°C")
+        print(f"  - US Type: {us_type}")
+        print(f"  - Interval: {min_interval}-{max_interval} min")
+        print(f"  - US Duration: {us_duration_seconds}s")
+        print(f"  - Heat Duration: {heat_duration_seconds}s")
+        
+    except Exception as e:
+        print(f"[ERROR] Web configuration failed: {e}")
+        print("[ERROR] Please restart device and try again.")
+        return
+    
+    # PHASE 2: System initialization
+    print("\n[Phase 2] Initializing system components...")
     
     # Retry logic for system initialization
     max_init_attempts = 5
@@ -221,7 +368,10 @@ def main():
         print("[SYSTEM] Please fix hardware issues and restart.")
         return
     
-    print("Starting experiment cycles...\n")
+    # PHASE 3: Run experiment cycles
+    print("\n[Phase 3] Starting experiment cycles...")
+    print(f"Experiment: {experiment_name}")
+    print(f"Correlation: {correlation}\n")
     
     # Configure US parameters (only if us_controller exists)
     if us_controller:
@@ -258,6 +408,7 @@ def main():
             print(f"{'='*50}\n")
             
             # Run experiment cycle with updated parameters
+            from run_experiment_cycle import run_experiment_cycle
             run_experiment_cycle(
                 cycle_number=cycle_number,
                 display=display,

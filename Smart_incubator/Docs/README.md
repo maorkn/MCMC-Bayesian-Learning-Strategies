@@ -69,11 +69,11 @@ Boot Layer:           boot.py (GPIO securing, system initialization)
   - **Phase transitions**: Basal temperature maintenance → Heat shock delivery
   - **Correlation-based timing**: 4 different stimulus-heat shock relationships
   - **Real-time monitoring**: 10-second logging intervals throughout cycle
-- **Correlation Modes Detailed**:
-  - **Mode 0**: Random independent timing for US and heat shock
-  - **Mode 1**: US immediately precedes heat shock (at cycle end) - DEFAULT
-  - **Mode 2**: US immediately follows heat shock
-  - **Mode 3**: Testing mode (heat at 1min, US at 0.5min)
+- **Correlation Values** (continuous range -1 to +1):
+  - **+1.0**: US always precedes heat shock (paired/predictive) - DEFAULT
+  - **0.0**: US delivered at random times (uncorrelated control)
+  - **-1.0**: No US delivered (heat shock only control)
+  - Intermediate values interpolate between these behaviors
 - **Data Collection**:
   - **Snapshot logging**: Temperature, power, mode, phase every 10 seconds
   - **Cycle statistics**: Min/max/average temperatures, error counts, duration

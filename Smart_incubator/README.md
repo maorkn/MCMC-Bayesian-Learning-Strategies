@@ -244,6 +244,37 @@ The platform emphasizes:
 
 ## Quick Start
 
+### 📱 WiFi Configuration Mode (v2.0)
+
+The Smart Incubator now features a **phone-based WiFi setup** mode. On boot, the ESP32 creates its own WiFi hotspot, allowing you to configure experiments directly from your phone without modifying code.
+
+**How to use:**
+
+1. **Power on the ESP32** → It creates a WiFi hotspot with unique SSID (e.g., `Inc-6774`)
+2. **Connect your phone** to the WiFi network
+   - SSID: `Inc-XXXX` (where XXXX is your device's unique ID)
+   - Password: `incubator123`
+3. **Open a browser** and go to `http://192.168.4.1`
+4. **Set the time** → Click "Use Phone Time" to sync automatically
+5. **Configure your experiment:**
+   - Experiment name
+   - Correlation value (-1 to +1)
+   - Temperature settings
+   - Interval and duration parameters
+6. **Press "START EXPERIMENT"** → The incubator begins running
+7. **Disconnect from WiFi** → The experiment runs autonomously
+
+**Multiple Incubators:** Each device gets a unique SSID based on its MAC address, so you can run multiple incubators simultaneously without WiFi conflicts.
+
+**Correlation Values:**
+| Value | Meaning |
+|-------|---------|
+| +1.0 | US always precedes heat shock (paired/predictive) |
+| 0.0 | US delivered randomly (control) |
+| -1.0 | No US delivered |
+
+---
+
 ### ⚡ Fast Track (Recommended)
 
 **For complete deployment instructions, see:**
