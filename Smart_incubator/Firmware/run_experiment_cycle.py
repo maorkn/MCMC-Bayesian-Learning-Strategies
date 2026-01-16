@@ -325,8 +325,9 @@ def run_experiment_cycle(
                 last_log_time = current_time
 
                 # --- RESUME US SYSTEM ---
+                # Use reset_timing=False to preserve vibration on/off cycle timing
                 if us_currently_active:
-                    us_controller.activate(us_type)
+                    us_controller.activate(us_type, reset_timing=False)
             
             # Print periodic status update
             if current_time - last_status_time >= status_interval:

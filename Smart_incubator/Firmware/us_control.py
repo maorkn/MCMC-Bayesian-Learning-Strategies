@@ -65,10 +65,20 @@ class USController:
                 self.vib_pwm.duty_u16(pwm_value)
                 self.last_vib_toggle = current_time
 
-    def activate(self, us_type="BOTH"):
-        """Activate US with specified type and current settings."""
+    def activate(self, us_type="BOTH", reset_timing=True):
+        """Activate US with specified type and current settings.
+        
+        Args:
+            us_type: Type of US to activate ("LED", "VIB", or "BOTH")
+            reset_timing: If True, reset vibration timing. Set to False when
+                          resuming after a brief pause (e.g., during logging)
+        """
+        was_active = self.is_active
         self.is_active = True
-        self.last_vib_toggle = time.time()
+        
+        # Only reset timing if this is a fresh activation, not a resume
+        if reset_timing and not was_active:
+            self.last_vib_toggle = time.time()
         
         if us_type in ["LED", "BOTH"] and self.led:
             # Use LED class method instead of direct PWM
