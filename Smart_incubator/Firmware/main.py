@@ -281,6 +281,103 @@ def wait_for_web_config():
     
     return config
 
+def run_stress_test(config):
+    """Run stress test protocol with web-configured parameters."""
+    from main_test import (
+        init_output_pins as test_init_pins,
+        init_temp_sensor as test_init_sensor,
+        init_display as test_init_display,
+        init_temp_controller as test_init_temp_ctrl,
+        init_us_controller as test_init_us_ctrl,
+        run_stage,
+        cleanup_globals as test_cleanup
+    )
+    from sd_logger import ExperimentLogger, init_sd
+    import main_test
+    
+    # Apply web config to main_test module
+    main_test.training_temp = config['training_temp']
+    main_test.challenge_temp = config['challenge_temp']
+    main_test.training_duration_seconds = config['training_duration'] * 60
+    main_test.challenge_duration_seconds = config['challenge_duration'] * 60
+    main_test.us_led_intensity = config['us_led_intensity']
+    main_test.us_vibration_intensity = config['us_vib_intensity']
+    main_test.us_type = config['us_type']
+    main_test.test_notes = config.get('notes', 'Web-configured stress test')
+    
+    print("\n[Stress Test] Initializing hardware...")
+    
+    test_init_pins()
+    if not test_init_sensor():
+        raise RuntimeError("Temperature sensor initialization failed")
+    
+    main_test.display = test_init_display()
+    main_test.temp_ctrl = test_init_temp_ctrl()
+    main_test.us_controller = test_init_us_ctrl()
+    
+    print("[Stress Test] Initializing SD card...")
+    if not init_sd():
+        raise RuntimeError("SD card initialization failed")
+    
+    # Create experiment logger with stress test params
+    experiment_params = {
+        "mode": "post_training_test",
+        "experiment_name": config['experiment_name'],
+        "training_temp": float(config['training_temp']),
+        "training_duration_minutes": config['training_duration'],
+        "challenge_temp": float(config['challenge_temp']),
+        "challenge_duration_minutes": config['challenge_duration'],
+        "us_led_intensity": int(config['us_led_intensity']),
+        "us_vibration_intensity": int(config['us_vib_intensity']),
+        "us_type": config['us_type'],
+        "notes": config.get('notes', '')
+    }
+    main_test.experiment_logger = ExperimentLogger(experiment_params)
+    if not main_test.experiment_logger.init_experiment():
+        raise RuntimeError("Experiment logger initialization failed")
+    
+    print("[Stress Test] Starting protocol...")
+    
+    try:
+        # Run training stage with US
+        if not run_stage(
+            stage_name="training_us",
+            cycle_number=1,
+            target_temp=main_test.training_temp,
+            duration_seconds=main_test.training_duration_seconds,
+            activate_us=True
+        ):
+            raise RuntimeError("Training stage failed")
+        
+        # Run heat challenge
+        if not run_stage(
+            stage_name="heat_challenge",
+            cycle_number=2,
+            target_temp=main_test.challenge_temp,
+            duration_seconds=main_test.challenge_duration_seconds,
+            activate_us=False
+        ):
+            raise RuntimeError("Challenge stage failed")
+        
+        print("\n[Stress Test] Protocol complete!")
+        main_test.experiment_logger.finalize_experiment(status="completed")
+        return True
+        
+    except Exception as e:
+        print(f"[Stress Test] Error: {e}")
+        if main_test.experiment_logger:
+            main_test.experiment_logger.finalize_experiment(status="error", error=str(e))
+        raise
+    finally:
+        if main_test.temp_ctrl:
+            main_test.temp_ctrl.heater.turn_off()
+            main_test.temp_ctrl.cooler.turn_off()
+        if main_test.us_controller:
+            main_test.us_controller.deactivate(main_test.us_type)
+        if main_test.display:
+            main_test.display.clear()
+
+
 def main():
     """Main program loop."""
     global basal_temp, heat_shock_temp, us_type, min_interval, max_interval
@@ -301,7 +398,22 @@ def main():
     try:
         config = wait_for_web_config()
         
-        # Apply configuration from web interface
+        # Check if stress test mode was selected
+        if config.get('mode') == 'stress':
+            print("\n[Mode] Stress Test selected")
+            print(f"  - Test Name: {config['experiment_name']}")
+            print(f"  - Training: {config['training_temp']}°C for {config['training_duration']}m")
+            print(f"  - Challenge: {config['challenge_temp']}°C for {config['challenge_duration']}m")
+            print(f"  - US: LED {config['us_led_intensity']}% / Vib {config['us_vib_intensity']}%")
+            
+            try:
+                run_stress_test(config)
+                print("\n[Stress Test] Completed successfully!")
+            except Exception as e:
+                print(f"\n[Stress Test] Failed: {e}")
+            return
+        
+        # Normal experiment mode
         experiment_name = config['experiment_name']
         correlation = config['correlation']
         basal_temp = config['basal_temp']

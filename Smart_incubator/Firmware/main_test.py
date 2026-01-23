@@ -33,6 +33,7 @@ challenge_duration_seconds = 150 * 60     # Default 150 minute challenge (adjust
 us_led_intensity = 100                   # 100% light intensity
 us_vibration_intensity = 100             # 100% vibration intensity
 us_type = "BOTH"
+experiment_name = "stress_test"          # Default experiment name (can be set from web)
 log_interval_seconds = 10                # SD logging cadence
 status_interval_seconds = 60             # Console status cadence
 gc_interval_seconds = 300                # Run GC every 5 minutes
@@ -130,12 +131,14 @@ def init_system():
         print("[System] Configuring experiment logger...")
         experiment_params = {
             "mode": "post_training_test",
+            "experiment_name": experiment_name,
             "training_temp": float(training_temp),
             "training_duration_minutes": training_duration_seconds / 60.0,
             "challenge_temp": float(challenge_temp),
             "challenge_duration_minutes": challenge_duration_seconds / 60.0,
             "us_led_intensity": int(us_led_intensity),
             "us_vibration_intensity": int(us_vibration_intensity),
+            "us_type": us_type,
             "notes": test_notes,
             "tubes": ["corr=1", "corr=0", "control"]
         }

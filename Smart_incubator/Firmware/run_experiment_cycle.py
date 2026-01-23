@@ -275,59 +275,64 @@ def run_experiment_cycle(
             if current_time - last_log_time >= log_interval and experiment_logger and not sd_card_failed:
                 # --- PWM NOISE MITIGATION ---
                 # Temporarily deactivate US system to ensure a clean temperature reading for the log
-                if us_currently_active:
+                was_us_active = us_currently_active
+                if was_us_active:
                     us_controller.deactivate(us_type)
 
-                # Short delay for PWM noise to settle before logging
-                time.sleep_ms(20)
-
-                # Prepare snapshot data with a fresh, clean reading
-                logged_temp = current_temp if current_temp is not None else last_valid_temp
-                if logged_temp is not None:
-                    logged_temp = round(logged_temp, 2)
-
-                snapshot_data = {
-                    'temp': logged_temp if logged_temp is not None else -99,
-                    'set_temp': round(target_temp, 2),
-                    'us_active': 1 if us_active else 0,
-                    'elapsed_minutes': round(elapsed_minutes, 2),
-                    'elapsed_seconds': round(elapsed_seconds, 1),
-                    'cycle_length_minutes': cycle_length_minutes_float,
-                    'cycle_length_seconds': cycle_length_seconds,
-                    'mode': mode,
-                    'power': round(power, 2),
-                    'tec_state': "On" if temp_ctrl.cooler.is_on else "Off",
-                    'phase': "heat_shock" if elapsed_seconds >= heat_start_seconds else "basal"
-                }
-                
-                # Log snapshot with error handling
                 try:
-                    if not experiment_logger.log_snapshot(cycle_number, snapshot_data):
-                        print("[ERROR] Failed to save data to SD card")
+                    # Short delay for PWM noise to settle before logging
+                    time.sleep_ms(20)
+
+                    # Prepare snapshot data with a fresh, clean reading
+                    logged_temp = current_temp if current_temp is not None else last_valid_temp
+                    if logged_temp is not None:
+                        logged_temp = round(logged_temp, 2)
+
+                    snapshot_data = {
+                        'temp': logged_temp if logged_temp is not None else -99,
+                        'set_temp': round(target_temp, 2),
+                        'us_active': 1 if us_active else 0,
+                        'elapsed_minutes': round(elapsed_minutes, 2),
+                        'elapsed_seconds': round(elapsed_seconds, 1),
+                        'cycle_length_minutes': cycle_length_minutes_float,
+                        'cycle_length_seconds': cycle_length_seconds,
+                        'mode': mode,
+                        'power': round(power, 2),
+                        'tec_state': "On" if temp_ctrl.cooler.is_on else "Off",
+                        'phase': "heat_shock" if elapsed_seconds >= heat_start_seconds else "basal"
+                    }
+                    
+                    # Log snapshot with error handling
+                    try:
+                        if not experiment_logger.log_snapshot(cycle_number, snapshot_data):
+                            print("[ERROR] Failed to save data to SD card")
+                            sd_card_failed = True
+                            
+                            # CRITICAL: Check if SD is completely dead
+                            if not experiment_logger.sd_write_ok:
+                                print("[CRITICAL] SD card marked as unhealthy! Stopping experiment.")
+                                raise RuntimeError("SD card write failures exceeded threshold - experiment halted for safety")
+                                
+                    except Exception as e:
+                        print(f"[ERROR] SD card logging error: {e}")
                         sd_card_failed = True
                         
-                        # CRITICAL: Check if SD is completely dead
-                        if not experiment_logger.sd_write_ok:
-                            print("[CRITICAL] SD card marked as unhealthy! Stopping experiment.")
-                            raise RuntimeError("SD card write failures exceeded threshold - experiment halted for safety")
-                            
-                except Exception as e:
-                    print(f"[ERROR] SD card logging error: {e}")
-                    sd_card_failed = True
-                    
-                    # If this is a critical SD failure, re-raise to stop the experiment
-                    if "SD card write failures exceeded threshold" in str(e):
-                        raise
-                    
-                    print("[WARNING] SD card logging disabled for this cycle. Experiment continues.")
-                    # Continue running even if logging fails
-                    
-                last_log_time = current_time
+                        # If this is a critical SD failure, re-raise to stop the experiment
+                        if "SD card write failures exceeded threshold" in str(e):
+                            raise
+                        
+                        print("[WARNING] SD card logging disabled for this cycle. Experiment continues.")
+                        # Continue running even if logging fails
+                finally:
+                    last_log_time = current_time
 
-                # --- RESUME US SYSTEM ---
-                # Use reset_timing=False to preserve vibration on/off cycle timing
-                if us_currently_active:
-                    us_controller.activate(us_type, reset_timing=False)
+                    # --- RESUME US SYSTEM ---
+                    # Restore US only if it should still be active
+                    if was_us_active and us_active:
+                        us_controller.activate(us_type, reset_timing=False)
+                        us_currently_active = True
+                    elif was_us_active and not us_active:
+                        us_currently_active = False
             
             # Print periodic status update
             if current_time - last_status_time >= status_interval:
