@@ -276,7 +276,12 @@ def wait_for_web_config():
         wifi_ap = None
     
     gc.collect()
-    print(f"[Setup] Config received: {config['experiment_name']}, corr={config['correlation']}")
+    mode = config.get('mode', 'experiment')
+    if mode == 'stress':
+        print("[Setup] Config received: stress test")
+        print(f"[Setup] Test: {config.get('experiment_name', 'stress_test')}")
+    else:
+        print(f"[Setup] Config received: {config.get('experiment_name', 'experiment')}, corr={config.get('correlation', 0)}")
     print(f"[Memory] After cleanup: {gc.mem_free()} bytes")
     
     return config
@@ -296,6 +301,7 @@ def run_stress_test(config):
     import main_test
     
     # Apply web config to main_test module
+    main_test.experiment_name = config.get('experiment_name', 'stress_test')
     main_test.training_temp = config['training_temp']
     main_test.challenge_temp = config['challenge_temp']
     main_test.training_duration_seconds = config['training_duration'] * 60
