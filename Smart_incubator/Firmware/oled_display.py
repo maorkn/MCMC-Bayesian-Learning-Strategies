@@ -91,6 +91,24 @@ class OLEDDisplay:
             self.oled.fill(0)
             self.oled.show()
 
+    def show_message(self, *messages, line=0, clear=None):
+        """Show one or more short status lines on the OLED."""
+        if not self.oled:
+            return
+
+        if clear is None:
+            clear = len(messages) > 1 or int(line) == 0
+        if clear:
+            self.oled.fill(0)
+
+        start_line = max(0, min(3, int(line)))
+        for offset, message in enumerate(messages):
+            row = start_line + offset
+            if row > 3:
+                break
+            self.oled.text(str(message)[:16], 0, row * 16)
+        self.oled.show()
+
 # ---- TEST CODE ----
 if __name__ == "__main__":
     display = OLEDDisplay()

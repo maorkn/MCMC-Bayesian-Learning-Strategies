@@ -235,16 +235,19 @@ def wait_for_web_config():
     
     # Initialize temperature sensor for web display
     print("[Setup] Initializing temperature sensor...")
+    temp_enabled = False
     try:
         from max31865 import init_max31865
-        init_max31865()
+        temp_enabled = bool(init_max31865())
+        if not temp_enabled:
+            print("[Setup] Temp sensor unavailable; web display will show --")
     except Exception as e:
         print(f"[Setup] Temp sensor warning: {e}")
     
     gc.collect()
     
     # Create and start setup server
-    setup_server = ExperimentSetupServer(device_id=device_id)
+    setup_server = ExperimentSetupServer(device_id=device_id, temp_enabled=temp_enabled)
     setup_server.start_server(port=80)
     
     # Display connection info on OLED if available
@@ -274,10 +277,21 @@ def wait_for_web_config():
     if wifi_ap:
         wifi_ap.active(False)
         wifi_ap = None
+
+    # Setup-only modules are not needed after the user has chosen a mode.
+    try:
+        import sys
+        for module_name in ('experiment_setup_server', 'wifi_setup'):
+            if module_name in sys.modules:
+                del sys.modules[module_name]
+    except Exception:
+        pass
     
     gc.collect()
     mode = config.get('mode', 'experiment')
-    if mode == 'stress':
+    if mode == 'hardware_test':
+        print("[Setup] Config received: hardware test")
+    elif mode == 'stress':
         print("[Setup] Config received: stress test")
         print(f"[Setup] Test: {config.get('experiment_name', 'stress_test')}")
     else:
@@ -403,6 +417,19 @@ def main():
     print("\n[Phase 1] Starting WiFi setup mode...")
     try:
         config = wait_for_web_config()
+
+        if config.get('mode') == 'hardware_test':
+            print("\n[Mode] Hardware Test selected")
+            print(f"  - Checks: OLED, SD card, temperature sensing")
+            print(f"  - Actuators: LED, vibration, cooling, heating")
+            print(f"  - Duration: {config.get('step_duration_seconds', 30)}s per actuator")
+            
+            try:
+                from hardware_test import run_hardware_test
+                run_hardware_test(config)
+            except Exception as e:
+                print(f"\n[Hardware Test] Failed: {e}")
+            return
         
         # Check if stress test mode was selected
         if config.get('mode') == 'stress':

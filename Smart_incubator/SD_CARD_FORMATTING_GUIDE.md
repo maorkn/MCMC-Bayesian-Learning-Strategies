@@ -8,11 +8,36 @@ Quick guide for formatting SD cards for Smart Incubator experiments.
 
 | Scenario | Method | Command |
 |----------|--------|---------|
+| **Routine plugged-in SD card** | Auto-detect wrapper | `python3 format_plugged_sd_card.py` |
 | **New SD card** | Local formatter | `python3 format_sd_card_local.py --list` |
 | **SD card needs reformat** | Local formatter | `python3 format_sd_card_local.py /dev/diskX` |
 | **SD card already in ESP32** | ESP32 formatter | `python3 format_sd_card.py` |
 | **Quick cleanup** | ESP32 formatter | `python3 format_sd_card.py` |
 | **File system corruption** | Local formatter | `python3 format_sd_card_local.py /dev/diskX` |
+
+---
+
+## Routine Method: Format the Currently Plugged-In Card
+
+**Best for:** repeated formatting from your computer when exactly one removable SD card is plugged in.
+
+```bash
+cd Smart_incubator
+
+# Optional: see detected removable cards first
+python3 format_plugged_sd_card.py --list
+
+# Auto-detect, format as INCUBATOR FAT32/MBR, create directories, and eject
+python3 format_plugged_sd_card.py
+```
+
+The wrapper refuses to proceed if it finds no eligible card or more than one eligible removable disk. If you intentionally have multiple removable disks attached, specify the target:
+
+```bash
+python3 format_plugged_sd_card.py --disk /dev/disk6
+```
+
+The wrapper delegates to `format_sd_card_local.py`, so it uses the same FAT32/MBR formatting and directory creation logic documented below.
 
 ---
 

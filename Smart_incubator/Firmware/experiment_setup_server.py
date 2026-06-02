@@ -5,11 +5,13 @@ import gc
 from machine import RTC
 
 class ExperimentSetupServer:
-    def __init__(self, device_id=""):
+    def __init__(self, device_id="", temp_enabled=True):
         self.socket = None
         self.device_id = device_id
+        self.temp_enabled = temp_enabled
         self.experiment_started = False
         self.stress_test_started = False
+        self.hardware_test_started = False
         self.rtc = RTC()
         self.time_set = False
         self.config = {
@@ -33,6 +35,13 @@ class ExperimentSetupServer:
             'us_vib_intensity': 100,
             'us_type': 'BOTH',
             'notes': 'Post-training survival test'
+        }
+        self.hardware_config = {
+            'step_duration_seconds': 30,
+            'led_intensity': 50,
+            'vib_intensity': 100,
+            'cooler_power': 50,
+            'heater_power': 30,
         }
     
     def get_time_str(self):
@@ -80,6 +89,7 @@ button{width:100%;padding:12px;border:none;border-radius:6px;font-size:1em;curso
 .tab{flex:1;padding:10px;border:none;border-radius:6px 6px 0 0;cursor:pointer;font-weight:bold}
 .tab-exp{background:#0c6;color:#000}
 .tab-stress{background:#f80;color:#000}
+.tab-test{background:#fc0;color:#000}
 .tab.inactive{opacity:0.5}
 .panel{display:none}
 .panel.active{display:block}
@@ -98,6 +108,7 @@ button{width:100%;padding:12px;border:none;border-radius:6px;font-size:1em;curso
 <div class="tabs">
 <button type="button" class="tab tab-exp" id="tabExp" onclick="showPanel('exp')">Experiment</button>
 <button type="button" class="tab tab-stress inactive" id="tabStress" onclick="showPanel('stress')">Stress Test</button>
+<button type="button" class="tab tab-test inactive" id="tabTest" onclick="showPanel('test')">Hardware Test</button>
 </div>
 <div id="panelExp" class="panel active">
 <div class="card"><form method="POST" action="/cfg">
@@ -162,15 +173,30 @@ button{width:100%;padding:12px;border:none;border-radius:6px;font-size:1em;curso
 <button type="submit" class="btn-orange" """ + start_dis + """>START STRESS TEST</button>
 </form>
 </div>
+<div id="panelTest" class="panel">
+<div class="card">
+<div class="status">OLED, SD, Temp, then LED -> Vib -> Cool -> Heat</div>
+<form method="POST" action="/hardware">
+<button type="submit" class="btn-orange">START HARDWARE TEST</button>
+</form></div>
+</div>
 </div>
 <script>
 function n(){var d=new Date();document.getElementById('d').value=d.toISOString().slice(0,10);document.getElementById('tm').value=d.toTimeString().slice(0,5)}
-function showPanel(p){document.getElementById('panelExp').className=p=='exp'?'panel active':'panel';document.getElementById('panelStress').className=p=='stress'?'panel active':'panel';document.getElementById('tabExp').className=p=='exp'?'tab tab-exp':'tab tab-exp inactive';document.getElementById('tabStress').className=p=='stress'?'tab tab-stress':'tab tab-stress inactive'}
+function showPanel(p){document.getElementById('panelExp').className=p=='exp'?'panel active':'panel';document.getElementById('panelStress').className=p=='stress'?'panel active':'panel';document.getElementById('panelTest').className=p=='test'?'panel active':'panel';document.getElementById('tabExp').className=p=='exp'?'tab tab-exp':'tab tab-exp inactive';document.getElementById('tabStress').className=p=='stress'?'tab tab-stress':'tab tab-stress inactive';document.getElementById('tabTest').className=p=='test'?'tab tab-test':'tab tab-test inactive'}
 n();setInterval(function(){fetch('/t').then(r=>r.text()).then(d=>{document.getElementById('t').textContent=d}).catch(e=>{})},3000);
 </script></body></html>"""
     
     def get_done_html(self, mode='experiment'):
-        if mode == 'stress':
+        if mode == 'hardware':
+            h = self.hardware_config
+            return """<!DOCTYPE html><html><head><title>Started</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>body{font-family:sans-serif;background:#1a1a2e;color:#fff;text-align:center;padding:40px}</style>
+</head><body><h1 style="color:#fc0">Hardware Test Started!</h1>
+<p>OLED, SD, temperature sensor</p><p>LED, vibration, cooler, heater: """ + str(h['step_duration_seconds']) + """ seconds each</p>
+<p style="color:#888;margin-top:30px">You can disconnect WiFi now.</p></body></html>"""
+        elif mode == 'stress':
             s = self.stress_config
             return """<!DOCTYPE html><html><head><title>Started</title>
 <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -209,6 +235,8 @@ n();setInterval(function(){fetch('/t').then(r=>r.text()).then(d=>{document.getEl
             method, path = parts[0], parts[1]
             
             if path == '/t':
+                if not self.temp_enabled:
+                    return "HTTP/1.1 200 OK\r\nContent-Type:text/plain\r\n\r\n--"
                 try:
                     from max31865 import read_temperature
                     t = read_temperature()
@@ -262,6 +290,12 @@ n();setInterval(function(){fetch('/t').then(r=>r.text()).then(d=>{document.getEl
                     html = self.get_done_html(mode='stress')
                     return f"HTTP/1.1 200 OK\r\nContent-Type:text/html\r\n\r\n{html}"
                 return "HTTP/1.1 302 Found\r\nLocation:/\r\n\r\n"
+
+            if path == '/hardware' and method == 'POST':
+                self.hardware_test_started = True
+                gc.collect()
+                html = self.get_done_html(mode='hardware')
+                return f"HTTP/1.1 200 OK\r\nContent-Type:text/html\r\n\r\n{html}"
             
             if path == '/start' and method == 'POST':
                 if self.time_set:
@@ -302,18 +336,60 @@ n();setInterval(function(){fetch('/t').then(r=>r.text()).then(d=>{document.getEl
                 self.socket = None
             except:
                 pass
+
+    def _recv_request(self, client):
+        req = client.recv(2048)
+        try:
+            text = req.decode('utf-8')
+        except:
+            return ""
+
+        header_end = text.find('\r\n\r\n')
+        if header_end < 0:
+            return text
+
+        headers = text[:header_end].split('\r\n')
+        body = text[header_end + 4:]
+        content_length = 0
+        for line in headers:
+            if line.lower().startswith('content-length:'):
+                try:
+                    content_length = int(line.split(':', 1)[1].strip())
+                except:
+                    content_length = 0
+                break
+
+        while content_length and len(body) < content_length:
+            chunk = client.recv(min(1024, content_length - len(body)))
+            if not chunk:
+                break
+            try:
+                body += chunk.decode('utf-8')
+            except:
+                break
+
+        return text[:header_end + 4] + body
+
+    def _send_response(self, client, response):
+        data = response.encode('utf-8')
+        sent = 0
+        while sent < len(data):
+            n = client.send(data[sent:sent + 512])
+            if not n:
+                break
+            sent += n
     
     def serve_until_start(self):
         print("[Server] Waiting for config...")
-        while not self.experiment_started and not self.stress_test_started:
+        while not self.experiment_started and not self.stress_test_started and not self.hardware_test_started:
             try:
                 client, _ = self.socket.accept()
                 client.settimeout(5.0)
                 try:
-                    req = client.recv(2048).decode('utf-8')
+                    req = self._recv_request(client)
                     if req:
                         resp = self.handle(req)
-                        client.send(resp.encode('utf-8'))
+                        self._send_response(client, resp)
                 except Exception as e:
                     print(f"[Srv] {e}")
                 finally:
@@ -326,6 +402,10 @@ n();setInterval(function(){fetch('/t').then(r=>r.text()).then(d=>{document.getEl
                 time.sleep(0.1)
         
         time.sleep(1)
+        if self.hardware_test_started:
+            cfg = self.hardware_config.copy()
+            cfg['mode'] = 'hardware_test'
+            return cfg
         if self.stress_test_started:
             cfg = self.stress_config.copy()
             cfg['mode'] = 'stress'
@@ -339,9 +419,15 @@ n();setInterval(function(){fetch('/t').then(r=>r.text()).then(d=>{document.getEl
     
     def get_stress_config(self):
         return self.stress_config.copy()
+
+    def get_hardware_config(self):
+        return self.hardware_config.copy()
     
     def is_started(self):
         return self.experiment_started
     
     def is_stress_test_started(self):
         return self.stress_test_started
+
+    def is_hardware_test_started(self):
+        return self.hardware_test_started
