@@ -326,6 +326,19 @@ python Smart_incubator/sync_firmware.py --correlation 1 --yes --port COM3
 #### Method 1: Full Local Reformat (Recommended for new/corrupted cards)
 Creates a fresh FAT32 (MBR) filesystem with required directories.
 
+**Routine auto-detect wrapper:**
+```bash
+# Safest routine path: auto-detects one plugged removable card,
+# formats it, creates the required directories, then ejects it.
+python3 Smart_incubator/format_plugged_sd_card.py
+
+# See what the wrapper would consider eligible
+python3 Smart_incubator/format_plugged_sd_card.py --list
+
+# If more than one removable disk is plugged in
+python3 Smart_incubator/format_plugged_sd_card.py --disk /dev/disk6
+```
+
 **macOS:**
 ```bash
 # List available disks
